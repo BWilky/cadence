@@ -77,10 +77,13 @@ class HAClient:
                 raise
             except Exception as exc:  # noqa: BLE001 — log and retry
                 log.warning("HA connection lost: %s (retry in %.0fs)", exc, backoff)
+            was_connected = self.connected.is_set()
             self.connected.clear()
-            for cb in self._conn_listeners:
-                with contextlib.suppress(Exception):
-                    cb(False)
+            if was_connected:
+                # Only announce the transition, not every failed retry.
+                for cb in self._conn_listeners:
+                    with contextlib.suppress(Exception):
+                        cb(False)
             for fut in self._pending.values():
                 if not fut.done():
                     fut.set_exception(HAError("connection lost"))
