@@ -79,6 +79,14 @@ def build_router(engine: Engine) -> APIRouter:
             raise HTTPException(409, f"scene is used by template(s): {', '.join(used)}")
         return {"deleted": store.delete(KIND_SCENE, scene_id)}
 
+    @r.post("/scenes/{scene_id}/test")
+    async def test_scene(scene_id: str) -> dict:
+        raw = store.get(KIND_SCENE, scene_id)
+        if not raw:
+            raise HTTPException(404, "unknown scene")
+        await engine.test_scene(CadenceScene(**raw))
+        return {"ok": True, "dry_run": engine.is_dry_run()}
+
     # ---------------------------------------------------------------- templates
     @r.get("/templates")
     async def list_templates() -> list[Template]:

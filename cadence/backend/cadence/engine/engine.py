@@ -655,6 +655,16 @@ class Engine:
             self.wake()
             return True
 
+    async def test_scene(self, scene: CadenceScene) -> None:
+        """Fire one Cadence Scene right now, outside the schedule (respects dry run)."""
+        self._log("info", "scene", f"Test: firing '{scene.name}'", {"scene_id": scene.id, "dry_run": self.is_dry_run()})
+        leds = await self.exec.apply_scene(scene, entering_chapter=True, music_only_on_entry=False)
+        until = time.time() + self.settings().override_grace_seconds
+        for led in leds:
+            if not self.ha.is_on(led):
+                self.expected_leds[led] = ("on", until)
+        self.wake()
+
     def set_auto_override(self, mode: str) -> None:
         self.auto_override = mode
         self.auto_override_date = self.now().date().isoformat()
