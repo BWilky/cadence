@@ -1,0 +1,23 @@
+configuration:
+  dry_run:
+    name: Dry run
+    description: When on, Cadence computes every chapter change and logs the actions it would take, but does not call Home Assistant services. Turn off to go live.
+  log_level:
+    name: Log level
+    description: Backend log verbosity.
+  external_url:
+    name: External URL
+    description: Public https URL that reaches the exposed port (e.g. https://cadence.example.com). Required for the Google-login planner; leave empty for ingress-only.
+  google_client_id:
+    name: Google OAuth client ID
+    description: From Google Cloud Console. Redirect URI must be <External URL>/auth/google/callback.
+  google_client_secret:
+    name: Google OAuth client secret
+  allowed_emails:
+    name: Allowed Google accounts
+    description: Only these Google account emails may sign in on the external URL.
+  session_secret:
+    name: Session secret
+    description: Random string used to sign login cookies. Generated on first start if left empty.
+network:
+  8099/tcp: Planner web port (for the Google-login URL). Ingress does not need it.

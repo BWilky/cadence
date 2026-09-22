@@ -1,0 +1,499 @@
+{
+  "title": "Starter day",
+  "description": "The example storyline with no Home Assistant entities attached. Edit the scenes to point at your RA2 phantom buttons and players.",
+  "scenes": [
+    {
+      "id": "nightlight_quiet",
+      "name": "Nightlight \u2014 Quiet",
+      "color": "#3a4a7a"
+    },
+    {
+      "id": "nightlight_motion",
+      "name": "Nightlight \u2014 Motion",
+      "color": "#5a6aa0"
+    },
+    {
+      "id": "coffee_light",
+      "name": "Coffee Bar \u2014 Light",
+      "color": "#e8b45a"
+    },
+    {
+      "id": "coffee_dark",
+      "name": "Coffee Bar \u2014 Dark",
+      "color": "#c98a3a"
+    },
+    {
+      "id": "breakfast_light",
+      "name": "Breakfast \u2014 Light",
+      "color": "#f0c86a"
+    },
+    {
+      "id": "breakfast_dark",
+      "name": "Breakfast \u2014 Dark",
+      "color": "#d9a24a"
+    },
+    {
+      "id": "day_sunny",
+      "name": "Daytime \u2014 Sunny",
+      "color": "#7fb1d6"
+    },
+    {
+      "id": "day_cloudy",
+      "name": "Daytime \u2014 Cloudy",
+      "color": "#8a9bb0"
+    },
+    {
+      "id": "meal_sunny",
+      "name": "Meal \u2014 Sunny",
+      "color": "#9cc9a0"
+    },
+    {
+      "id": "meal_cloudy",
+      "name": "Meal \u2014 Cloudy",
+      "color": "#7fa786"
+    },
+    {
+      "id": "meal_dark",
+      "name": "Meal \u2014 Dark",
+      "color": "#5f8a68"
+    },
+    {
+      "id": "evening_daylight",
+      "name": "Evening \u2014 Daylight",
+      "color": "#e89a5a"
+    },
+    {
+      "id": "evening_dark",
+      "name": "Evening \u2014 Dark",
+      "color": "#c4706e"
+    },
+    {
+      "id": "late_night",
+      "name": "Late Night Crowd",
+      "color": "#9a6ab8"
+    },
+    {
+      "id": "all_off",
+      "name": "All Off",
+      "color": "#2a3350"
+    }
+  ],
+  "templates": [
+    {
+      "id": "standard_day",
+      "name": "Standard day",
+      "description": "Coffee bar at dawn through late night crowd.",
+      "chapters": [
+        {
+          "id": "nightlight_early",
+          "name": "Nightlight",
+          "color": "#3a4a7a",
+          "note": "Building asleep. Comes on with motion, holds five minutes after it stops.",
+          "start": {
+            "kind": "clock",
+            "time": "00:00"
+          },
+          "fade_minutes": 0.1,
+          "motion_hold_minutes": 5,
+          "variants": [
+            {
+              "key": "motion",
+              "label": "Motion",
+              "when": {
+                "motion": true
+              },
+              "scene_ids": [
+                "nightlight_motion"
+              ],
+              "note": ""
+            },
+            {
+              "key": "quiet",
+              "label": "Quiet",
+              "when": {},
+              "scene_ids": [
+                "nightlight_quiet"
+              ],
+              "note": ""
+            }
+          ]
+        },
+        {
+          "id": "coffee",
+          "name": "Coffee Bar",
+          "color": "#e8b45a",
+          "note": "Light and dark variations \u2014 the dark one carries winter and early-spring mornings. Slow music fade-up.",
+          "start": {
+            "kind": "clock",
+            "time": "06:46"
+          },
+          "fade_minutes": 20,
+          "variants": [
+            {
+              "key": "dark",
+              "label": "Dark",
+              "when": {
+                "light": "dark"
+              },
+              "scene_ids": [
+                "coffee_dark"
+              ],
+              "note": ""
+            },
+            {
+              "key": "light",
+              "label": "Light",
+              "when": {},
+              "scene_ids": [
+                "coffee_light"
+              ],
+              "note": ""
+            }
+          ]
+        },
+        {
+          "id": "breakfast",
+          "name": "Breakfast",
+          "color": "#f0c86a",
+          "note": "Light and dark variations.",
+          "start": {
+            "kind": "clock",
+            "time": "07:30"
+          },
+          "fade_minutes": 20,
+          "variants": [
+            {
+              "key": "dark",
+              "label": "Dark",
+              "when": {
+                "light": "dark"
+              },
+              "scene_ids": [
+                "breakfast_dark"
+              ],
+              "note": ""
+            },
+            {
+              "key": "light",
+              "label": "Light",
+              "when": {},
+              "scene_ids": [
+                "breakfast_light"
+              ],
+              "note": ""
+            }
+          ]
+        },
+        {
+          "id": "daytime_am",
+          "name": "Daytime",
+          "color": "#7fb1d6",
+          "note": "Sunny or cloudy.",
+          "start": {
+            "kind": "clock",
+            "time": "08:30"
+          },
+          "fade_minutes": 20,
+          "variants": [
+            {
+              "key": "sunny",
+              "label": "Sunny",
+              "when": {
+                "sky": [
+                  "sunny"
+                ]
+              },
+              "scene_ids": [
+                "day_sunny"
+              ],
+              "note": ""
+            },
+            {
+              "key": "cloudy",
+              "label": "Cloudy",
+              "when": {},
+              "scene_ids": [
+                "day_cloudy"
+              ],
+              "note": ""
+            }
+          ]
+        },
+        {
+          "id": "meal_lunch",
+          "name": "Daytime Meal",
+          "color": "#9cc9a0",
+          "note": "Sunny, cloudy or dark.",
+          "start": {
+            "kind": "clock",
+            "time": "11:45"
+          },
+          "fade_minutes": 20,
+          "variants": [
+            {
+              "key": "sunny",
+              "label": "Sunny",
+              "when": {
+                "sky": [
+                  "sunny"
+                ]
+              },
+              "scene_ids": [
+                "meal_sunny"
+              ],
+              "note": ""
+            },
+            {
+              "key": "dark",
+              "label": "Dark",
+              "when": {
+                "sky": [
+                  "dark"
+                ]
+              },
+              "scene_ids": [
+                "meal_dark"
+              ],
+              "note": ""
+            },
+            {
+              "key": "cloudy",
+              "label": "Cloudy",
+              "when": {},
+              "scene_ids": [
+                "meal_cloudy"
+              ],
+              "note": ""
+            }
+          ]
+        },
+        {
+          "id": "daytime_pm",
+          "name": "Daytime",
+          "color": "#7fb1d6",
+          "note": "Same as the morning Daytime chapter.",
+          "start": {
+            "kind": "clock",
+            "time": "13:15"
+          },
+          "fade_minutes": 20,
+          "variants": [
+            {
+              "key": "sunny",
+              "label": "Sunny",
+              "when": {
+                "sky": [
+                  "sunny"
+                ]
+              },
+              "scene_ids": [
+                "day_sunny"
+              ],
+              "note": ""
+            },
+            {
+              "key": "cloudy",
+              "label": "Cloudy",
+              "when": {},
+              "scene_ids": [
+                "day_cloudy"
+              ],
+              "note": ""
+            }
+          ]
+        },
+        {
+          "id": "meal_dinner",
+          "name": "Daytime Meal",
+          "color": "#9cc9a0",
+          "note": "Sunny, cloudy or dark.",
+          "start": {
+            "kind": "clock",
+            "time": "17:00"
+          },
+          "fade_minutes": 20,
+          "variants": [
+            {
+              "key": "sunny",
+              "label": "Sunny",
+              "when": {
+                "sky": [
+                  "sunny"
+                ]
+              },
+              "scene_ids": [
+                "meal_sunny"
+              ],
+              "note": ""
+            },
+            {
+              "key": "dark",
+              "label": "Dark",
+              "when": {
+                "sky": [
+                  "dark"
+                ]
+              },
+              "scene_ids": [
+                "meal_dark"
+              ],
+              "note": ""
+            },
+            {
+              "key": "cloudy",
+              "label": "Cloudy",
+              "when": {},
+              "scene_ids": [
+                "meal_cloudy"
+              ],
+              "note": ""
+            }
+          ]
+        },
+        {
+          "id": "evening",
+          "name": "Default Evening",
+          "color": "#e89a5a",
+          "note": "Daylight or dark, depending on what is left of the day.",
+          "start": {
+            "kind": "clock",
+            "time": "18:30"
+          },
+          "fade_minutes": 20,
+          "variants": [
+            {
+              "key": "dark",
+              "label": "Dark",
+              "when": {
+                "light": "dark"
+              },
+              "scene_ids": [
+                "evening_dark"
+              ],
+              "note": ""
+            },
+            {
+              "key": "daylight",
+              "label": "Daylight",
+              "when": {},
+              "scene_ids": [
+                "evening_daylight"
+              ],
+              "note": ""
+            }
+          ]
+        },
+        {
+          "id": "late_night",
+          "name": "Late Night Crowd",
+          "color": "#9a6ab8",
+          "note": "Comes on when the sun drops 5\u00b0 below the horizon. Stays until the building falls asleep.",
+          "start": {
+            "kind": "sun",
+            "sun_event": "elevation",
+            "elevation": -5,
+            "direction": "setting",
+            "latest": "21:30"
+          },
+          "fade_minutes": 20,
+          "variants": [
+            {
+              "key": "on",
+              "label": "On",
+              "when": {},
+              "scene_ids": [
+                "late_night"
+              ],
+              "note": ""
+            }
+          ]
+        },
+        {
+          "id": "nightlight_late",
+          "name": "Nightlight",
+          "color": "#3a4a7a",
+          "note": "Begins when the building falls asleep (asleep sensor), no earlier than 21:00, no later than 01:00. Motion-activated for the rest of the night.",
+          "start": {
+            "kind": "asleep",
+            "earliest": "21:00",
+            "latest": "01:00"
+          },
+          "fade_minutes": 5,
+          "motion_hold_minutes": 5,
+          "variants": [
+            {
+              "key": "motion",
+              "label": "Motion",
+              "when": {
+                "motion": true
+              },
+              "scene_ids": [
+                "nightlight_motion"
+              ],
+              "note": ""
+            },
+            {
+              "key": "quiet",
+              "label": "Quiet",
+              "when": {},
+              "scene_ids": [
+                "nightlight_quiet"
+              ],
+              "note": ""
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "settings": {
+    "site_name": "Cadence",
+    "auto_source": "either",
+    "auto_schedule": {
+      "windows": {
+        "0": [
+          {
+            "start": "06:00",
+            "end": "23:30"
+          }
+        ],
+        "1": [
+          {
+            "start": "06:00",
+            "end": "23:30"
+          }
+        ],
+        "2": [
+          {
+            "start": "06:00",
+            "end": "23:30"
+          }
+        ],
+        "3": [
+          {
+            "start": "06:00",
+            "end": "23:30"
+          }
+        ],
+        "4": [
+          {
+            "start": "06:00",
+            "end": "23:30"
+          }
+        ],
+        "5": [
+          {
+            "start": "06:00",
+            "end": "23:30"
+          }
+        ],
+        "6": [
+          {
+            "start": "06:00",
+            "end": "23:30"
+          }
+        ]
+      }
+    }
+  }
+}

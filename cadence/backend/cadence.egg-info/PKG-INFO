@@ -1,0 +1,32 @@
+Metadata-Version: 2.4
+Name: cadence
+Version: 0.1.0
+Summary: Cadence — daily lighting and music storyline engine for Home Assistant
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: fastapi>=0.115
+Requires-Dist: uvicorn[standard]>=0.30
+Requires-Dist: pydantic>=2.7
+Requires-Dist: aiohttp>=3.9
+Requires-Dist: astral>=3.2
+Requires-Dist: itsdangerous>=2.2
+Requires-Dist: httpx>=0.27
+Requires-Dist: python-multipart>=0.0.9
+Provides-Extra: dev
+Requires-Dist: pytest>=8; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.23; extra == "dev"
+Requires-Dist: ruff>=0.5; extra == "dev"
+
+# Cadence backend
+
+FastAPI service that runs the chapter engine and serves the planner / tablet UI.
+See the repository root README for the full picture.
+
+Local dev:
+
+```bash
+cd cadence/backend
+pip install -e ".[dev]"
+HA_URL=http://homeassistant.local:8123 HA_TOKEN=<long-lived token> CADENCE_DEV_NO_AUTH=1 \
+  CADENCE_DATA_DIR=./.data python -m cadence
+```

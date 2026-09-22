@@ -1,0 +1,42 @@
+name: Cadence
+version: 0.1.0
+slug: cadence
+description: Daily lighting and music storyline for the building — chapters, scenes and music zones driven by time, sun and lux.
+url: https://github.com/bwilky/cadence
+arch:
+  - aarch64
+  - amd64
+image: ghcr.io/bwilky/cadence-{arch}
+init: false
+startup: services
+boot: auto
+homeassistant_api: true
+hassio_api: false
+ingress: true
+ingress_port: 8099
+ingress_stream: true
+panel_icon: mdi:movie-open-play
+panel_title: Cadence
+ports:
+  8099/tcp: null
+ports_description:
+  8099/tcp: Optional host port for the Google-login planner URL. Leave disabled to keep the panel ingress-only.
+watchdog: http://[HOST]:[PORT:8099]/api/health
+map: []
+options:
+  dry_run: true
+  log_level: info
+  external_url: ""
+  google_client_id: ""
+  google_client_secret: ""
+  allowed_emails: []
+  session_secret: ""
+schema:
+  dry_run: bool
+  log_level: list(debug|info|warning|error)
+  external_url: str?
+  google_client_id: str?
+  google_client_secret: password?
+  allowed_emails:
+    - email?
+  session_secret: password?

@@ -1,0 +1,1069 @@
+{
+  "title": "Barnabas Landing \u2014 The Station",
+  "description": "Scenes mapped to the RA2 KP_PHANTOMSCENES keypad, Bose CSP zones and SpotifyPlus. Spotify playlist URIs need filling in.",
+  "scenes": [
+    {
+      "id": "nightlight_quiet",
+      "name": "Nightlight \u2014 Quiet",
+      "color": "#3a4a7a",
+      "description": "Building asleep, nothing moving. Uses RA2 'Station Off Common'.",
+      "ha_scenes": [
+        {
+          "entity_id": "scene.kp_phantomscenes_station_off_common",
+          "led_entity": "switch.kp_phantomscenes_station_off_common"
+        }
+      ],
+      "music": [
+        {
+          "kind": "mute",
+          "entity_id": "media_player.bose_csp_diningroom"
+        },
+        {
+          "kind": "mute",
+          "entity_id": "media_player.bose_csp_foyer"
+        },
+        {
+          "kind": "mute",
+          "entity_id": "media_player.bose_csp_lounge"
+        },
+        {
+          "kind": "mute",
+          "entity_id": "media_player.bose_csp_pavilion"
+        }
+      ]
+    },
+    {
+      "id": "nightlight_motion",
+      "name": "Nightlight \u2014 Motion",
+      "color": "#5a6aa0",
+      "description": "Someone is moving through the building at night. Uses RA2 'Station Afterhours'.",
+      "ha_scenes": [
+        {
+          "entity_id": "scene.kp_phantomscenes_station_afterhours",
+          "led_entity": "switch.kp_phantomscenes_station_afterhours"
+        }
+      ]
+    },
+    {
+      "id": "coffee_light",
+      "name": "Coffee Bar \u2014 Light",
+      "color": "#e8b45a",
+      "description": "Morning coffee with daylight outside. RA2 'Station Day Cloudy' until a dedicated phantom button exists. Music fades up over 20 minutes and the morning playlist starts.",
+      "ha_scenes": [
+        {
+          "entity_id": "scene.kp_phantomscenes_station_day_cloudy",
+          "led_entity": "switch.kp_phantomscenes_station_day_cloudy"
+        }
+      ],
+      "music": [
+        {
+          "kind": "unmute",
+          "entity_id": "media_player.bose_csp_diningroom"
+        },
+        {
+          "kind": "unmute",
+          "entity_id": "media_player.bose_csp_foyer"
+        },
+        {
+          "kind": "unmute",
+          "entity_id": "media_player.bose_csp_lounge"
+        },
+        {
+          "kind": "unmute",
+          "entity_id": "media_player.bose_csp_pavilion"
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_diningroom",
+          "volume": 0.08,
+          "minutes": 20
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_foyer",
+          "volume": 0.08,
+          "minutes": 20
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_lounge",
+          "volume": 0.08,
+          "minutes": 20
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_pavilion",
+          "volume": 0.08,
+          "minutes": 20
+        },
+        {
+          "kind": "play_playlist",
+          "entity_id": "media_player.spotifyplus_the_station",
+          "media_content_id": "spotify:playlist:REPLACE_ME_MORNING",
+          "media_content_type": "playlist",
+          "shuffle": true,
+          "delay_seconds": 5
+        }
+      ]
+    },
+    {
+      "id": "coffee_dark",
+      "name": "Coffee Bar \u2014 Dark",
+      "color": "#c98a3a",
+      "description": "Morning coffee while it is still dark. RA2 'Station Evening' as the warm stand-in until a dedicated phantom button exists.",
+      "ha_scenes": [
+        {
+          "entity_id": "scene.kp_phantomscenes_station_evening",
+          "led_entity": "switch.kp_phantomscenes_station_evening"
+        }
+      ],
+      "music": [
+        {
+          "kind": "unmute",
+          "entity_id": "media_player.bose_csp_diningroom"
+        },
+        {
+          "kind": "unmute",
+          "entity_id": "media_player.bose_csp_foyer"
+        },
+        {
+          "kind": "unmute",
+          "entity_id": "media_player.bose_csp_lounge"
+        },
+        {
+          "kind": "unmute",
+          "entity_id": "media_player.bose_csp_pavilion"
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_diningroom",
+          "volume": 0.08,
+          "minutes": 20
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_foyer",
+          "volume": 0.08,
+          "minutes": 20
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_lounge",
+          "volume": 0.08,
+          "minutes": 20
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_pavilion",
+          "volume": 0.08,
+          "minutes": 20
+        },
+        {
+          "kind": "play_playlist",
+          "entity_id": "media_player.spotifyplus_the_station",
+          "media_content_id": "spotify:playlist:REPLACE_ME_MORNING",
+          "media_content_type": "playlist",
+          "shuffle": true,
+          "delay_seconds": 5
+        }
+      ]
+    },
+    {
+      "id": "breakfast_light",
+      "name": "Breakfast \u2014 Light",
+      "color": "#f0c86a",
+      "ha_scenes": [
+        {
+          "entity_id": "scene.kp_phantomscenes_station_day_cloudy",
+          "led_entity": "switch.kp_phantomscenes_station_day_cloudy"
+        }
+      ],
+      "music": [
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_diningroom",
+          "volume": 0.12,
+          "minutes": 10
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_foyer",
+          "volume": 0.12,
+          "minutes": 10
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_lounge",
+          "volume": 0.12,
+          "minutes": 10
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_pavilion",
+          "volume": 0.12,
+          "minutes": 10
+        }
+      ]
+    },
+    {
+      "id": "breakfast_dark",
+      "name": "Breakfast \u2014 Dark",
+      "color": "#d9a24a",
+      "ha_scenes": [
+        {
+          "entity_id": "scene.kp_phantomscenes_station_evening",
+          "led_entity": "switch.kp_phantomscenes_station_evening"
+        }
+      ],
+      "music": [
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_diningroom",
+          "volume": 0.12,
+          "minutes": 10
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_foyer",
+          "volume": 0.12,
+          "minutes": 10
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_lounge",
+          "volume": 0.12,
+          "minutes": 10
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_pavilion",
+          "volume": 0.12,
+          "minutes": 10
+        }
+      ]
+    },
+    {
+      "id": "day_sunny",
+      "name": "Daytime \u2014 Sunny",
+      "color": "#7fb1d6",
+      "ha_scenes": [
+        {
+          "entity_id": "scene.kp_phantomscenes_station_day_sunny",
+          "led_entity": "switch.kp_phantomscenes_station_day_sunny"
+        }
+      ],
+      "music": [
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_diningroom",
+          "volume": 0.1,
+          "minutes": 5
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_foyer",
+          "volume": 0.1,
+          "minutes": 5
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_lounge",
+          "volume": 0.1,
+          "minutes": 5
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_pavilion",
+          "volume": 0.1,
+          "minutes": 5
+        }
+      ]
+    },
+    {
+      "id": "day_cloudy",
+      "name": "Daytime \u2014 Cloudy",
+      "color": "#8a9bb0",
+      "ha_scenes": [
+        {
+          "entity_id": "scene.kp_phantomscenes_station_day_cloudy",
+          "led_entity": "switch.kp_phantomscenes_station_day_cloudy"
+        }
+      ],
+      "music": [
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_diningroom",
+          "volume": 0.1,
+          "minutes": 5
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_foyer",
+          "volume": 0.1,
+          "minutes": 5
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_lounge",
+          "volume": 0.1,
+          "minutes": 5
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_pavilion",
+          "volume": 0.1,
+          "minutes": 5
+        }
+      ]
+    },
+    {
+      "id": "meal_sunny",
+      "name": "Meal \u2014 Sunny",
+      "color": "#9cc9a0",
+      "ha_scenes": [
+        {
+          "entity_id": "scene.kp_phantomscenes_station_day_sunny",
+          "led_entity": "switch.kp_phantomscenes_station_day_sunny"
+        }
+      ],
+      "music": [
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_diningroom",
+          "volume": 0.14,
+          "minutes": 5
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_foyer",
+          "volume": 0.14,
+          "minutes": 5
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_lounge",
+          "volume": 0.14,
+          "minutes": 5
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_pavilion",
+          "volume": 0.14,
+          "minutes": 5
+        }
+      ]
+    },
+    {
+      "id": "meal_cloudy",
+      "name": "Meal \u2014 Cloudy",
+      "color": "#7fa786",
+      "ha_scenes": [
+        {
+          "entity_id": "scene.kp_phantomscenes_station_day_cloudy",
+          "led_entity": "switch.kp_phantomscenes_station_day_cloudy"
+        }
+      ],
+      "music": [
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_diningroom",
+          "volume": 0.14,
+          "minutes": 5
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_foyer",
+          "volume": 0.14,
+          "minutes": 5
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_lounge",
+          "volume": 0.14,
+          "minutes": 5
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_pavilion",
+          "volume": 0.14,
+          "minutes": 5
+        }
+      ]
+    },
+    {
+      "id": "meal_dark",
+      "name": "Meal \u2014 Dark",
+      "color": "#5f8a68",
+      "ha_scenes": [
+        {
+          "entity_id": "scene.kp_phantomscenes_station_evening",
+          "led_entity": "switch.kp_phantomscenes_station_evening"
+        }
+      ],
+      "music": [
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_diningroom",
+          "volume": 0.14,
+          "minutes": 5
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_foyer",
+          "volume": 0.14,
+          "minutes": 5
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_lounge",
+          "volume": 0.14,
+          "minutes": 5
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_pavilion",
+          "volume": 0.14,
+          "minutes": 5
+        }
+      ]
+    },
+    {
+      "id": "evening_daylight",
+      "name": "Evening \u2014 Daylight",
+      "color": "#e89a5a",
+      "ha_scenes": [
+        {
+          "entity_id": "scene.kp_phantomscenes_station_day_cloudy",
+          "led_entity": "switch.kp_phantomscenes_station_day_cloudy"
+        }
+      ],
+      "music": [
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_diningroom",
+          "volume": 0.12,
+          "minutes": 10
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_foyer",
+          "volume": 0.12,
+          "minutes": 10
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_lounge",
+          "volume": 0.12,
+          "minutes": 10
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_pavilion",
+          "volume": 0.12,
+          "minutes": 10
+        }
+      ]
+    },
+    {
+      "id": "evening_dark",
+      "name": "Evening \u2014 Dark",
+      "color": "#c4706e",
+      "ha_scenes": [
+        {
+          "entity_id": "scene.kp_phantomscenes_station_evening",
+          "led_entity": "switch.kp_phantomscenes_station_evening"
+        }
+      ],
+      "music": [
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_diningroom",
+          "volume": 0.12,
+          "minutes": 10
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_foyer",
+          "volume": 0.12,
+          "minutes": 10
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_lounge",
+          "volume": 0.12,
+          "minutes": 10
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_pavilion",
+          "volume": 0.12,
+          "minutes": 10
+        },
+        {
+          "kind": "play_playlist",
+          "entity_id": "media_player.spotifyplus_the_station",
+          "media_content_id": "spotify:playlist:REPLACE_ME_EVENING",
+          "media_content_type": "playlist",
+          "shuffle": true,
+          "delay_seconds": 5
+        }
+      ]
+    },
+    {
+      "id": "late_night",
+      "name": "Late Night Crowd",
+      "color": "#9a6ab8",
+      "ha_scenes": [
+        {
+          "entity_id": "scene.kp_phantomscenes_station_evening_late",
+          "led_entity": "switch.kp_phantomscenes_station_evening_late"
+        }
+      ],
+      "music": [
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_diningroom",
+          "volume": 0.06,
+          "minutes": 15
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_foyer",
+          "volume": 0.06,
+          "minutes": 15
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_lounge",
+          "volume": 0.06,
+          "minutes": 15
+        },
+        {
+          "kind": "volume_fade",
+          "entity_id": "media_player.bose_csp_pavilion",
+          "volume": 0.06,
+          "minutes": 15
+        }
+      ]
+    },
+    {
+      "id": "all_off",
+      "name": "Station Off All",
+      "color": "#2a3350",
+      "ha_scenes": [
+        {
+          "entity_id": "scene.kp_phantomscenes_station_off_all",
+          "led_entity": "switch.kp_phantomscenes_station_off_all"
+        }
+      ],
+      "music": [
+        {
+          "kind": "mute",
+          "entity_id": "media_player.bose_csp_diningroom"
+        },
+        {
+          "kind": "mute",
+          "entity_id": "media_player.bose_csp_foyer"
+        },
+        {
+          "kind": "mute",
+          "entity_id": "media_player.bose_csp_lounge"
+        },
+        {
+          "kind": "mute",
+          "entity_id": "media_player.bose_csp_pavilion"
+        },
+        {
+          "kind": "pause",
+          "entity_id": "media_player.spotifyplus_the_station"
+        }
+      ]
+    }
+  ],
+  "templates": [
+    {
+      "id": "standard_day",
+      "name": "Standard day",
+      "description": "Coffee bar at dawn through late night crowd.",
+      "chapters": [
+        {
+          "id": "nightlight_early",
+          "name": "Nightlight",
+          "color": "#3a4a7a",
+          "note": "Building asleep. Comes on with motion, holds five minutes after it stops.",
+          "start": {
+            "kind": "clock",
+            "time": "00:00"
+          },
+          "fade_minutes": 0.1,
+          "motion_hold_minutes": 5,
+          "variants": [
+            {
+              "key": "motion",
+              "label": "Motion",
+              "when": {
+                "motion": true
+              },
+              "scene_ids": [
+                "nightlight_motion"
+              ],
+              "note": ""
+            },
+            {
+              "key": "quiet",
+              "label": "Quiet",
+              "when": {},
+              "scene_ids": [
+                "nightlight_quiet"
+              ],
+              "note": ""
+            }
+          ]
+        },
+        {
+          "id": "coffee",
+          "name": "Coffee Bar",
+          "color": "#e8b45a",
+          "note": "Light and dark variations \u2014 the dark one carries winter and early-spring mornings. Slow music fade-up.",
+          "start": {
+            "kind": "clock",
+            "time": "06:46"
+          },
+          "fade_minutes": 20,
+          "variants": [
+            {
+              "key": "dark",
+              "label": "Dark",
+              "when": {
+                "light": "dark"
+              },
+              "scene_ids": [
+                "coffee_dark"
+              ],
+              "note": ""
+            },
+            {
+              "key": "light",
+              "label": "Light",
+              "when": {},
+              "scene_ids": [
+                "coffee_light"
+              ],
+              "note": ""
+            }
+          ]
+        },
+        {
+          "id": "breakfast",
+          "name": "Breakfast",
+          "color": "#f0c86a",
+          "note": "Light and dark variations.",
+          "start": {
+            "kind": "clock",
+            "time": "07:30"
+          },
+          "fade_minutes": 20,
+          "variants": [
+            {
+              "key": "dark",
+              "label": "Dark",
+              "when": {
+                "light": "dark"
+              },
+              "scene_ids": [
+                "breakfast_dark"
+              ],
+              "note": ""
+            },
+            {
+              "key": "light",
+              "label": "Light",
+              "when": {},
+              "scene_ids": [
+                "breakfast_light"
+              ],
+              "note": ""
+            }
+          ]
+        },
+        {
+          "id": "daytime_am",
+          "name": "Daytime",
+          "color": "#7fb1d6",
+          "note": "Sunny or cloudy.",
+          "start": {
+            "kind": "clock",
+            "time": "08:30"
+          },
+          "fade_minutes": 20,
+          "variants": [
+            {
+              "key": "sunny",
+              "label": "Sunny",
+              "when": {
+                "sky": [
+                  "sunny"
+                ]
+              },
+              "scene_ids": [
+                "day_sunny"
+              ],
+              "note": ""
+            },
+            {
+              "key": "cloudy",
+              "label": "Cloudy",
+              "when": {},
+              "scene_ids": [
+                "day_cloudy"
+              ],
+              "note": ""
+            }
+          ]
+        },
+        {
+          "id": "meal_lunch",
+          "name": "Daytime Meal",
+          "color": "#9cc9a0",
+          "note": "Sunny, cloudy or dark.",
+          "start": {
+            "kind": "clock",
+            "time": "11:45"
+          },
+          "fade_minutes": 20,
+          "variants": [
+            {
+              "key": "sunny",
+              "label": "Sunny",
+              "when": {
+                "sky": [
+                  "sunny"
+                ]
+              },
+              "scene_ids": [
+                "meal_sunny"
+              ],
+              "note": ""
+            },
+            {
+              "key": "dark",
+              "label": "Dark",
+              "when": {
+                "sky": [
+                  "dark"
+                ]
+              },
+              "scene_ids": [
+                "meal_dark"
+              ],
+              "note": ""
+            },
+            {
+              "key": "cloudy",
+              "label": "Cloudy",
+              "when": {},
+              "scene_ids": [
+                "meal_cloudy"
+              ],
+              "note": ""
+            }
+          ]
+        },
+        {
+          "id": "daytime_pm",
+          "name": "Daytime",
+          "color": "#7fb1d6",
+          "note": "Same as the morning Daytime chapter.",
+          "start": {
+            "kind": "clock",
+            "time": "13:15"
+          },
+          "fade_minutes": 20,
+          "variants": [
+            {
+              "key": "sunny",
+              "label": "Sunny",
+              "when": {
+                "sky": [
+                  "sunny"
+                ]
+              },
+              "scene_ids": [
+                "day_sunny"
+              ],
+              "note": ""
+            },
+            {
+              "key": "cloudy",
+              "label": "Cloudy",
+              "when": {},
+              "scene_ids": [
+                "day_cloudy"
+              ],
+              "note": ""
+            }
+          ]
+        },
+        {
+          "id": "meal_dinner",
+          "name": "Daytime Meal",
+          "color": "#9cc9a0",
+          "note": "Sunny, cloudy or dark.",
+          "start": {
+            "kind": "clock",
+            "time": "17:00"
+          },
+          "fade_minutes": 20,
+          "variants": [
+            {
+              "key": "sunny",
+              "label": "Sunny",
+              "when": {
+                "sky": [
+                  "sunny"
+                ]
+              },
+              "scene_ids": [
+                "meal_sunny"
+              ],
+              "note": ""
+            },
+            {
+              "key": "dark",
+              "label": "Dark",
+              "when": {
+                "sky": [
+                  "dark"
+                ]
+              },
+              "scene_ids": [
+                "meal_dark"
+              ],
+              "note": ""
+            },
+            {
+              "key": "cloudy",
+              "label": "Cloudy",
+              "when": {},
+              "scene_ids": [
+                "meal_cloudy"
+              ],
+              "note": ""
+            }
+          ]
+        },
+        {
+          "id": "evening",
+          "name": "Default Evening",
+          "color": "#e89a5a",
+          "note": "Daylight or dark, depending on what is left of the day.",
+          "start": {
+            "kind": "clock",
+            "time": "18:30"
+          },
+          "fade_minutes": 20,
+          "variants": [
+            {
+              "key": "dark",
+              "label": "Dark",
+              "when": {
+                "light": "dark"
+              },
+              "scene_ids": [
+                "evening_dark"
+              ],
+              "note": ""
+            },
+            {
+              "key": "daylight",
+              "label": "Daylight",
+              "when": {},
+              "scene_ids": [
+                "evening_daylight"
+              ],
+              "note": ""
+            }
+          ]
+        },
+        {
+          "id": "late_night",
+          "name": "Late Night Crowd",
+          "color": "#9a6ab8",
+          "note": "Comes on when the sun drops 5\u00b0 below the horizon. Stays until the building falls asleep.",
+          "start": {
+            "kind": "sun",
+            "sun_event": "elevation",
+            "elevation": -5,
+            "direction": "setting",
+            "latest": "21:30"
+          },
+          "fade_minutes": 20,
+          "variants": [
+            {
+              "key": "on",
+              "label": "On",
+              "when": {},
+              "scene_ids": [
+                "late_night"
+              ],
+              "note": ""
+            }
+          ]
+        },
+        {
+          "id": "nightlight_late",
+          "name": "Nightlight",
+          "color": "#3a4a7a",
+          "note": "Begins when the building falls asleep (asleep sensor), no earlier than 21:00, no later than 01:00. Motion-activated for the rest of the night.",
+          "start": {
+            "kind": "asleep",
+            "earliest": "21:00",
+            "latest": "01:00"
+          },
+          "fade_minutes": 5,
+          "motion_hold_minutes": 5,
+          "variants": [
+            {
+              "key": "motion",
+              "label": "Motion",
+              "when": {
+                "motion": true
+              },
+              "scene_ids": [
+                "nightlight_motion"
+              ],
+              "note": ""
+            },
+            {
+              "key": "quiet",
+              "label": "Quiet",
+              "when": {},
+              "scene_ids": [
+                "nightlight_quiet"
+              ],
+              "note": ""
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "settings": {
+    "site_name": "Barnabas Light Story",
+    "default_template_id": "standard_day",
+    "auto_source": "either",
+    "auto_schedule": {
+      "windows": {
+        "0": [
+          {
+            "start": "06:30",
+            "end": "23:59"
+          }
+        ],
+        "1": [
+          {
+            "start": "06:30",
+            "end": "23:59"
+          }
+        ],
+        "2": [
+          {
+            "start": "06:30",
+            "end": "23:59"
+          }
+        ],
+        "3": [
+          {
+            "start": "06:30",
+            "end": "23:59"
+          }
+        ],
+        "4": [
+          {
+            "start": "06:30",
+            "end": "23:59"
+          }
+        ],
+        "5": [
+          {
+            "start": "06:30",
+            "end": "23:59"
+          }
+        ],
+        "6": [
+          {
+            "start": "06:30",
+            "end": "23:59"
+          }
+        ]
+      }
+    },
+    "auto_entity": null,
+    "motion_entity": "binary_sensor.station_motion_common_floor",
+    "asleep_entity": null,
+    "occupied_entity": "input_boolean.propertyoccupied",
+    "sky": {
+      "lux_entity": "sensor.lux",
+      "weather_entity": "weather.barnabas",
+      "dark_elevation": -3.0,
+      "dark_lux": 30,
+      "sunny_lux": 400,
+      "hysteresis_pct": 15,
+      "min_dwell_minutes": 10,
+      "stale_minutes": 30
+    },
+    "calendars": [],
+    "calendar_keywords": [
+      "retreat",
+      "booking",
+      "group",
+      "wedding",
+      "event"
+    ],
+    "zones": [
+      {
+        "id": "cupola",
+        "name": "Cupola",
+        "entity_id": "light.cupola_lights"
+      },
+      {
+        "id": "clerestory",
+        "name": "Clerestory",
+        "entity_id": "light.station_mezzanine"
+      },
+      {
+        "id": "dormer",
+        "name": "Dormer",
+        "entity_id": "light.up_lights"
+      },
+      {
+        "id": "greatroom",
+        "name": "Great Room",
+        "entity_id": "light.station_dining_room"
+      },
+      {
+        "id": "porch",
+        "name": "Entry Porch",
+        "entity_id": "light.station_foyer"
+      },
+      {
+        "id": "eastwing",
+        "name": "Coffee Bar",
+        "entity_id": "light.station_lounge"
+      },
+      {
+        "id": "lamps",
+        "name": "Lamp Posts",
+        "entity_id": "group.lampposts"
+      },
+      {
+        "id": "path",
+        "name": "Path & Grounds",
+        "entity_id": "group.featurelighting"
+      }
+    ],
+    "dry_run": false,
+    "override_grace_seconds": 120,
+    "hold_mode": "next_chapter"
+  }
+}
