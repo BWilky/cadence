@@ -6,7 +6,9 @@ url: https://github.com/bwilky/cadence
 arch:
   - aarch64
   - amd64
-image: ghcr.io/bwilky/cadence-{arch}
+# Prebuilt images: uncomment once the GHCR packages built by .github/workflows/build.yml are public.
+# Without it, Supervisor builds the image on the Home Assistant host from the Dockerfile.
+# image: ghcr.io/bwilky/cadence-{arch}
 init: false
 startup: services
 boot: auto
