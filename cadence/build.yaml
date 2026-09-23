@@ -1,5 +1,0 @@
-# Used when Supervisor builds on the host (no `image:` in config.yaml). The Dockerfile pins its own
-# base images, so nothing is needed per architecture; this file just satisfies the builder.
-build_from:
-  aarch64: python:3.12-slim
-  amd64: python:3.12-slim

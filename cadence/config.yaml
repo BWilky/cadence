@@ -7,7 +7,7 @@ arch:
   - aarch64
   - amd64
 # Prebuilt images: uncomment once the GHCR packages built by .github/workflows/build.yml are public.
-# Without it, Supervisor builds the image on the Home Assistant host from the Dockerfile.
+# Without it, Supervisor builds the image on the Home Assistant host from the Dockerfile (which pins its own bases).
 # image: ghcr.io/bwilky/cadence-{arch}
 init: false
 startup: services
