@@ -36,7 +36,7 @@ export function Now({ live }: { live: Live }) {
     <div className="mx-auto flex max-w-7xl flex-col gap-4">
       <div className="grid gap-4 lg:grid-cols-3">
         {/* Now */}
-        <div className="card card-border bg-base-200">
+        <div className="card border border-base-300 bg-base-100 shadow-sm">
           <div className="card-body gap-3">
             <div className="eyebrow">Now · {st.template_name ?? "no template"}</div>
             <h2 className="display text-4xl leading-none">{st.chapter?.name ?? "Nothing scheduled"}</h2>
@@ -76,7 +76,7 @@ export function Now({ live }: { live: Live }) {
         </div>
 
         {/* Control */}
-        <div className="card card-border bg-base-200">
+        <div className="card border border-base-300 bg-base-100 shadow-sm">
           <div className="card-body gap-3">
             <div className="eyebrow">Control</div>
             <div className="flex items-center gap-2">
@@ -124,10 +124,10 @@ export function Now({ live }: { live: Live }) {
         </div>
 
         {/* Outside */}
-        <div className="card card-border bg-base-200">
+        <div className="card border border-base-300 bg-base-100 shadow-sm">
           <div className="card-body gap-3">
             <div className="eyebrow">Outside</div>
-            <div className="stats stats-vertical bg-base-100/60 shadow-none sm:stats-horizontal">
+            <div className="stats stats-vertical bg-base-200/60 shadow-none sm:stats-horizontal">
               <div className="stat px-4 py-3">
                 <div className="stat-title text-xs">Sky</div>
                 <div className="stat-value text-2xl">{st.sky.state ? SKY_LABEL[st.sky.state] : "—"}</div>
@@ -162,7 +162,7 @@ export function Now({ live }: { live: Live }) {
         </div>
       </div>
 
-      <div className="card card-border bg-base-200">
+      <div className="card border border-base-300 bg-base-100 shadow-sm">
         <div className="card-body gap-3">
           <div className="flex items-center justify-between">
             <div className="eyebrow">Today · {st.date}</div>
@@ -170,7 +170,7 @@ export function Now({ live }: { live: Live }) {
           </div>
           <Track chapters={st.timeline} date={st.date} now={st.now} sunrise={st.sun.sunrise} sunset={st.sun.sunset} currentId={st.chapter?.id} variantOf={variantOf} onChapter={setPick} />
           {pick ? (
-            <div className="rounded-box border border-base-300 bg-base-100/60 p-4">
+            <div className="rounded-box border border-base-300 bg-base-200/60 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <span className="display text-xl">{pick.name}</span> <span className="font-mono text-xs opacity-60">{pick.start ? fmtTime(pick.start) : "waiting"}</span>

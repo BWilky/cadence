@@ -1,46 +1,9 @@
 @import "tailwindcss";
 @plugin "daisyui" {
-  themes: false;
-}
-
-/* The Cadence theme: night-sky ground, lamp-amber primary, teal accent for anything "live". */
-@plugin "daisyui/theme" {
-  name: "cadence";
-  default: true;
-  prefersdark: true;
-  color-scheme: dark;
-  --color-base-100: #0e1528;
-  --color-base-200: #141c30;
-  --color-base-300: #1e2842;
-  --color-base-content: #ede6d6;
-  --color-primary: #f2b24a;
-  --color-primary-content: #1a1207;
-  --color-secondary: #9a6ab8;
-  --color-secondary-content: #f4ecff;
-  --color-accent: #6ed3c6;
-  --color-accent-content: #04221f;
-  --color-neutral: #26304a;
-  --color-neutral-content: #ede6d6;
-  --color-info: #9cc9ff;
-  --color-info-content: #0a1a30;
-  --color-success: #6ed3c6;
-  --color-success-content: #04221f;
-  --color-warning: #ffd98a;
-  --color-warning-content: #2a1d05;
-  --color-error: #e07a6b;
-  --color-error-content: #2b0c08;
-  --radius-selector: 1rem;
-  --radius-field: 0.5rem;
-  --radius-box: 0.75rem;
-  --size-selector: 0.25rem;
-  --size-field: 0.25rem;
-  --border: 1px;
-  --depth: 0;
-  --noise: 0;
+  themes: light --default, dark;
 }
 
 @theme {
-  --font-sans: "Instrument Sans", "Helvetica Neue", Arial, sans-serif;
   --font-serif: "Newsreader", Georgia, "Times New Roman", serif;
   --font-mono: "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
   --color-ground: #0a1020;
@@ -65,7 +28,7 @@
   --live: #6ed3c6;
   --danger: #e07a6b;
   --focus: #9cc9ff;
-  --sans: var(--font-sans);
+  --sans: "Instrument Sans", "Helvetica Neue", Arial, sans-serif;
   --serif: var(--font-serif);
   --mono: var(--font-mono);
 }
@@ -76,23 +39,21 @@ body,
   height: 100%;
 }
 body {
-  background: var(--color-ground);
+  background: var(--color-base-200);
   -webkit-font-smoothing: antialiased;
 }
 
 /* Small typographic helpers shared by the designer pages. */
 .display {
-  font-family: var(--font-serif);
-  font-style: italic;
-  font-weight: 400;
-  letter-spacing: 0.005em;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 .eyebrow {
   font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   font-weight: 500;
-  color: color-mix(in oklab, var(--color-base-content) 55%, transparent);
+  color: color-mix(in oklab, var(--color-base-content) 60%, transparent);
 }
 
 /* ---------- 24-hour timeline track (Now + Planner) ---------- */
@@ -100,7 +61,7 @@ body {
   position: relative;
   height: 58px;
   border-radius: var(--radius-field);
-  background: var(--color-ground);
+  background: var(--color-base-100);
   border: 1px solid var(--color-base-300);
   overflow: hidden;
 }
@@ -108,7 +69,7 @@ body {
   position: absolute;
   top: 0;
   bottom: 0;
-  border-left: 1px solid rgba(255, 255, 255, 0.06);
+  border-left: 1px solid color-mix(in oklab, var(--color-base-content) 8%, transparent);
 }
 .track .hour span {
   position: absolute;
@@ -127,9 +88,9 @@ body {
   background: var(--c-fill);
   overflow: hidden;
   padding: 3px 7px;
-  font-family: var(--font-serif);
-  font-style: italic;
-  font-size: 13px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-base-content);
   white-space: nowrap;
   text-overflow: ellipsis;
   cursor: pointer;
@@ -147,7 +108,8 @@ body {
   font-family: var(--font-mono);
   font-style: normal;
   font-size: 10px;
-  color: var(--color-lamp-2);
+  color: color-mix(in oklab, var(--color-base-content) 70%, transparent);
+  font-weight: 500;
   margin-left: 6px;
 }
 .track .block.current {
@@ -159,8 +121,8 @@ body {
   left: 0;
   top: 0;
   bottom: 0;
-  background: repeating-linear-gradient(-60deg, rgba(255, 255, 255, 0.08) 0 3px, transparent 3px 8px);
-  border-right: 1px dashed rgba(255, 255, 255, 0.25);
+  background: repeating-linear-gradient(-60deg, color-mix(in oklab, var(--color-base-content) 10%, transparent) 0 3px, transparent 3px 8px);
+  border-right: 1px dashed color-mix(in oklab, var(--color-base-content) 30%, transparent);
   pointer-events: none;
 }
 .track .playhead {
@@ -176,7 +138,7 @@ body {
   position: absolute;
   top: 0;
   bottom: 0;
-  background: rgba(20, 28, 60, 0.55);
+  background: color-mix(in oklab, var(--color-base-content) 7%, transparent);
   pointer-events: none;
 }
 .track .auto {
@@ -202,7 +164,7 @@ body {
   height: 12px;
   border-radius: 50%;
   flex: 0 0 auto;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid color-mix(in oklab, var(--color-base-content) 20%, transparent);
   display: inline-block;
 }
 
@@ -211,7 +173,7 @@ body {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: var(--color-ground);
+  background: var(--color-base-100);
   padding: 8px 0 4px;
   border-bottom: 1px solid var(--color-base-300);
 }

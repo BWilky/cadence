@@ -20,7 +20,7 @@ export function Log({ live }: { live: ReturnType<typeof useLive> }) {
         <h2 className="display text-2xl">Activity</h2>
         <input type="search" className="input input-sm w-60" placeholder="Filter…" value={filter} onChange={(e) => setFilter(e.target.value)} />
       </div>
-      <div className="card card-border bg-base-200">
+      <div className="card border border-base-300 bg-base-100 shadow-sm">
         <div className="card-body p-0">
           {shown.length === 0 ? <div className="p-8 text-center opacity-60">Nothing yet.</div> : null}
           <table className="table table-xs">

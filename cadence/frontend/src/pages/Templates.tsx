@@ -48,7 +48,7 @@ export function Templates() {
           </button>
         </div>
         <p className="text-xs opacity-60">A template is one whole day: its chapters in order, and for each chapter the variants that react to sky, motion and occupancy.</p>
-        <ul className="menu w-full rounded-box bg-base-200 p-1">
+        <ul className="menu w-full rounded-box border border-base-300 bg-base-100 p-1">
           {list.map((t) => (
             <li key={t.id}>
               <button className={"flex-col items-start gap-0 " + (t.id === sel ? "menu-active" : "")} onClick={() => setSel(t.id)}>
@@ -149,7 +149,7 @@ function TemplateEditor(props: { template: Template; scenes: CadenceScene[]; set
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="card card-border bg-base-200">
+      <div className="card border border-base-300 bg-base-100 shadow-sm">
         <div className="card-body gap-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <input type="text" className="input display flex-1 text-2xl" value={t.name} onChange={(e) => setT({ ...t, name: e.target.value })} />
@@ -177,7 +177,7 @@ function TemplateEditor(props: { template: Template; scenes: CadenceScene[]; set
 
       <div className="flex flex-col gap-2">
         {t.chapters.map((c, i) => (
-          <div key={c.id} className={"collapse rounded-box border bg-base-200 " + (open === c.id ? "collapse-open border-base-content/20" : "collapse-close border-base-300") + (c.enabled ? "" : " opacity-60")}>
+          <div key={c.id} className={"collapse rounded-box border bg-base-100 shadow-sm " + (open === c.id ? "collapse-open border-base-content/20" : "collapse-close border-base-300") + (c.enabled ? "" : " opacity-60")}>
             <div className="collapse-title flex min-h-0 cursor-pointer items-center gap-3 py-3 pr-3" onClick={() => setOpen(open === c.id ? null : c.id)}>
               <span className="swatch" style={{ background: c.color ?? "#556" }} />
               <b className="display text-lg">{c.name}</b>
@@ -205,7 +205,7 @@ function TemplateEditor(props: { template: Template; scenes: CadenceScene[]; set
           + Add chapter
         </button>
       </div>
-      <div className="sticky bottom-0 flex items-center gap-3 border-t border-base-300 bg-base-100 py-3">
+      <div className="sticky bottom-0 flex items-center gap-3 border-t border-base-300 bg-base-200 py-3">
         <button className="btn btn-primary btn-sm" disabled={!dirty || saving} onClick={save}>
           Save template
         </button>
@@ -250,7 +250,7 @@ function ChapterEditor({ chapter: c, scenes, onChange }: { chapter: Chapter; sce
       <Field label="Note (shown on the tablet)">
         <textarea className="textarea textarea-sm w-full" value={c.note} onChange={(e) => onChange({ note: e.target.value })} />
       </Field>
-      <div className="collapse-arrow collapse rounded-box border border-base-300 bg-base-100/50">
+      <div className="collapse-arrow collapse rounded-box border border-base-300 bg-base-100 shadow-sm/60">
         <input type="checkbox" />
         <div className="collapse-title min-h-0 py-2 text-sm">Motion & behaviour</div>
         <div className="collapse-content flex flex-col gap-3">
@@ -270,7 +270,7 @@ function ChapterEditor({ chapter: c, scenes, onChange }: { chapter: Chapter; sce
 
       <div className="eyebrow">Variants — first match wins, top to bottom</div>
       {c.variants.map((v, i) => (
-        <div key={i} className="rounded-box border border-base-300 bg-base-100/50 p-3">
+        <div key={i} className="rounded-box border border-base-300 bg-base-200/60 p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <input type="text" className="input input-sm w-44" value={v.label} onChange={(e) => setVariant(i, { label: e.target.value, key: v.key || slug(e.target.value) })} />

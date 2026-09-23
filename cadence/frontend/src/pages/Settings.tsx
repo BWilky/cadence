@@ -8,7 +8,7 @@ const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 function Section({ title, children, intro }: { title: string; intro?: string; children: React.ReactNode }) {
   return (
-    <div className="card card-border bg-base-200">
+    <div className="card border border-base-300 bg-base-100 shadow-sm">
       <div className="card-body gap-3">
         <h3 className="card-title text-base">{title}</h3>
         {intro ? <p className="-mt-1 text-xs opacity-60">{intro}</p> : null}
@@ -70,7 +70,7 @@ export function SettingsPage({ live }: { live: ReturnType<typeof useLive> }) {
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-4">
-      <div className="sticky top-0 z-10 -mx-1 flex items-center justify-between gap-3 bg-base-100/95 px-1 py-2 backdrop-blur">
+      <div className="sticky top-0 z-10 -mx-1 flex items-center justify-between gap-3 bg-base-200/95 px-1 py-2 backdrop-blur">
         <h2 className="display text-2xl">Settings</h2>
         <div className="flex gap-2">
           <button className="btn btn-primary btn-sm" disabled={!dirty || saving} onClick={save}>

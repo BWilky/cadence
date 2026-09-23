@@ -49,7 +49,7 @@ export function Scenes() {
           </button>
         </div>
         <p className="text-xs opacity-60">A Cadence scene is a look for the building: one or more Home Assistant scenes (RA2 phantom buttons, WiZ scenes…) plus what the music should do.</p>
-        <ul className="menu w-full rounded-box bg-base-200 p-1">
+        <ul className="menu w-full rounded-box border border-base-300 bg-base-100 p-1">
           {list.map((s) => (
             <li key={s.id}>
               <button className={"items-center gap-3 " + (s.id === sel ? "menu-active" : "")} onClick={() => setSel(s.id)}>
@@ -130,7 +130,7 @@ function SceneEditor(props: { scene: CadenceScene; settings: Settings; onSaved: 
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="card card-border bg-base-200">
+      <div className="card border border-base-300 bg-base-100 shadow-sm">
         <div className="card-body gap-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <input type="text" className="input display flex-1 text-2xl" value={s.name} onChange={(e) => setS({ ...s, name: e.target.value })} />
@@ -151,12 +151,12 @@ function SceneEditor(props: { scene: CadenceScene; settings: Settings; onSaved: 
         </div>
       </div>
 
-      <div className="card card-border bg-base-200">
+      <div className="card border border-base-300 bg-base-100 shadow-sm">
         <div className="card-body gap-3">
           <h3 className="card-title text-base">Home Assistant scenes</h3>
           <p className="text-xs opacity-60">Each is activated with scene.turn_on. For RA2 phantom buttons, pick the keypad LED switch that lights when the scene is active — Cadence uses it to see fades finish and to notice when someone changes the lights by hand.</p>
           {s.ha_scenes.map((l, i) => (
-            <div key={i} className="grid items-end gap-3 rounded-box border border-base-300 bg-base-100/50 p-3 md:grid-cols-[1fr_1fr_auto_auto]">
+            <div key={i} className="grid items-end gap-3 rounded-box border border-base-300 bg-base-200/60 p-3 md:grid-cols-[1fr_1fr_auto_auto]">
               <Field label="Scene">
                 <EntityPicker
                   value={l.entity_id}
@@ -185,7 +185,7 @@ function SceneEditor(props: { scene: CadenceScene; settings: Settings; onSaved: 
         </div>
       </div>
 
-      <div className="card card-border bg-base-200">
+      <div className="card border border-base-300 bg-base-100 shadow-sm">
         <div className="card-body gap-3">
           <h3 className="card-title text-base">Music</h3>
           <p className="text-xs opacity-60">Runs when the scene is applied. Fades ramp the player's volume level over the given minutes. Playlist starts only run when a chapter is entered (see the chapter's behaviour settings).</p>
@@ -210,7 +210,7 @@ function SceneEditor(props: { scene: CadenceScene; settings: Settings; onSaved: 
         </div>
       </div>
 
-      <div className="collapse-arrow collapse rounded-box border border-base-300 bg-base-200">
+      <div className="collapse-arrow collapse rounded-box border border-base-300 bg-base-100 shadow-sm">
         <input type="checkbox" />
         <div className="collapse-title text-sm font-medium">Extra service calls & tablet glow levels</div>
         <div className="collapse-content flex flex-col gap-3">
@@ -251,7 +251,7 @@ function SceneEditor(props: { scene: CadenceScene; settings: Settings; onSaved: 
         </div>
       </div>
 
-      <div className="sticky bottom-0 flex items-center gap-3 border-t border-base-300 bg-base-100 py-3">
+      <div className="sticky bottom-0 flex items-center gap-3 border-t border-base-300 bg-base-200 py-3">
         <button className="btn btn-primary btn-sm" disabled={!dirty || saving} onClick={save}>
           Save scene
         </button>
@@ -269,7 +269,7 @@ function MusicRow({ m, onChange, onRemove }: { m: MusicAction; onChange: (p: Par
   const players = useEntities("media_player");
   const player = players.find((p) => p.entity_id === m.entity_id);
   return (
-    <div className="flex flex-wrap items-end gap-3 rounded-box border border-base-300 bg-base-100/50 p-3">
+    <div className="flex flex-wrap items-end gap-3 rounded-box border border-base-300 bg-base-200/60 p-3">
       <Field label="Action">
         <select className="select select-sm w-44" value={m.kind} onChange={(e) => onChange({ kind: e.target.value as MusicKind })}>
           {KINDS.map((k) => (

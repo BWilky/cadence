@@ -144,7 +144,7 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
   return (
     <div className="grid h-full grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px]">
       <div className={"flex min-h-0 min-w-0 flex-col " + (selected ? "hidden lg:flex" : "")}>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-base-300 px-4 py-2">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-base-300 bg-base-100 px-4 py-2">
           <div className="text-xs opacity-60">
             Each row is a day. Scroll sideways through the hours; <span className="text-accent">■</span> auto windows, <span className="text-primary">■</span> calendar events. Click a day to plan it.
           </div>
@@ -168,10 +168,10 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
           </div>
         </div>
 
-        <div ref={listRef} className="relative min-h-0 flex-1 overflow-auto">
+        <div ref={listRef} className="relative min-h-0 flex-1 overflow-auto bg-base-100">
           <div style={{ width: HEAD_W + trackW + 16 }}>
             {/* Shared hour ruler, pinned to the top */}
-            <div className="sticky top-0 z-20 flex bg-base-100/95 backdrop-blur">
+            <div className="sticky top-0 z-20 flex bg-base-100/95 shadow-sm backdrop-blur">
               <div className="sticky left-0 z-10 shrink-0 bg-base-100" style={{ width: HEAD_W }} />
               <div className="relative h-7 border-b border-base-300" style={{ width: trackW }}>
                 {Array.from({ length: 25 }, (_, h) => (
@@ -196,11 +196,11 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
                       <span className="display text-xl opacity-80">{dt.toLocaleDateString([], { month: "long", year: "numeric" })}</span>
                     </div>
                   ) : null}
-                  <div className={"flex items-stretch border-b border-base-300 " + (isToday ? "bg-accent/5" : "")}>
+                  <div className={"flex items-stretch border-b border-base-300 " + (isToday ? "bg-accent/10" : "")}>
                     <div className="sticky left-0 z-10 shrink-0 border-r border-base-300 bg-base-100 px-2 py-2" style={{ width: HEAD_W }}>
                       <button
                         type="button"
-                        className={"flex w-full flex-col items-start gap-1 rounded-box px-2 py-1.5 text-left hover:bg-base-200 " + (selected === d.date ? "bg-base-200 ring-1 ring-primary/60" : "")}
+                        className={"flex w-full flex-col items-start gap-1 rounded-box px-2 py-1.5 text-left hover:bg-base-200/70 " + (selected === d.date ? "bg-primary/10 ring-1 ring-primary/60" : "")}
                         onClick={() => setSelected(selected === d.date ? null : d.date)}
                       >
                         <div className={"display text-lg leading-none " + (isToday ? "text-accent" : weekend ? "opacity-70" : "")}>
@@ -259,7 +259,7 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
           </div>
         </div>
       </div>
-      <aside className={"overflow-auto border-l border-base-300 bg-base-200 px-4 py-3 " + (selected ? "" : "hidden lg:block")}>
+      <aside className={"overflow-auto border-l border-base-300 bg-base-100 px-4 py-3 " + (selected ? "" : "hidden lg:block")}>
         {selectedView ? (
           <DayEditor
             key={selectedView.date}
@@ -353,7 +353,7 @@ function DayEditor(props: { view: DayView; templates: Template[]; focusChapter: 
         </button>
       </div>
       {view.events.length ? (
-        <div className="rounded-box border border-base-300 bg-base-100/60 p-3 text-sm">
+        <div className="rounded-box border border-base-300 bg-base-200/60 p-3 text-sm">
           <div className="eyebrow mb-1">Calendar</div>
           {view.events.map((e, i) => (
             <div key={i} className="truncate">
@@ -451,7 +451,7 @@ function DayEditor(props: { view: DayView; templates: Template[]; focusChapter: 
         );
       })}
 
-      <div className="sticky bottom-0 -mx-4 flex gap-2 border-t border-base-300 bg-base-200 px-4 py-3">
+      <div className="sticky bottom-0 -mx-4 flex gap-2 border-t border-base-300 bg-base-100 px-4 py-3">
         <button className="btn btn-primary btn-sm" disabled={saving || !dirty} onClick={save}>
           Save day
         </button>

@@ -125,7 +125,7 @@ export function EntityPicker(props: {
       </label>
       {props.value && !open ? <div className="mt-0.5 font-mono text-[11px] opacity-60 truncate">{props.value}</div> : null}
       {open ? (
-        <ul className="menu menu-sm absolute left-0 right-0 top-full z-50 mt-1 max-h-64 flex-nowrap overflow-y-auto rounded-box border border-base-300 bg-base-200 shadow-xl">
+        <ul className="menu menu-sm absolute left-0 right-0 top-full z-50 mt-1 max-h-64 flex-nowrap overflow-y-auto rounded-box border border-base-300 bg-base-100 shadow-xl">
           {results.length === 0 ? <li className="menu-title">No matches{all.length === 0 ? " (is Home Assistant connected?)" : ""}</li> : null}
           {results.map((e, i) => (
             <li key={e.entity_id}>
