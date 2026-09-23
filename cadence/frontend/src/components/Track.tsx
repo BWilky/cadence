@@ -16,6 +16,8 @@ export function Track(props: {
   variantOf?: (c: ResolvedChapter) => string | null | undefined;
   onChapter?: (c: ResolvedChapter) => void;
   hours?: boolean;
+  hourLabels?: boolean;
+  className?: string;
 }) {
   const pct = (m: number) => (Math.max(0, Math.min(1440, m)) / 1440) * 100;
   const starts = props.chapters.map((c) => (c.start ? minutesOfDay(c.start) : minutesOfDay(c.nominal)));
@@ -24,7 +26,7 @@ export function Track(props: {
   const sr = props.sunrise ? minutesOfDay(props.sunrise) : null;
   const ss = props.sunset ? minutesOfDay(props.sunset) : null;
   return (
-    <div className="track">
+    <div className={"track " + (props.className ?? "")}>
       {sr != null && ss != null ? (
         <>
           <div className="night" style={{ left: 0, width: pct(sr) + "%" }} />
@@ -34,7 +36,7 @@ export function Track(props: {
       {props.hours !== false
         ? Array.from({ length: 24 }, (_, h) => (
             <div key={h} className="hour" style={{ left: pct(h * 60) + "%" }}>
-              {h % 3 === 0 ? <span>{String(h).padStart(2, "0")}</span> : null}
+              {props.hourLabels !== false && h % 3 === 0 ? <span>{String(h).padStart(2, "0")}</span> : null}
             </div>
           ))
         : null}

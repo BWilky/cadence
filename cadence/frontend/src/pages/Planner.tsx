@@ -7,6 +7,14 @@ import type { ChapterOverride, DayPlan, DayView, ResolvedChapter, Template } fro
 
 const CHUNK = 21;
 
+const HEAD_W = 168; // px, pinned day-header column
+const ZOOMS: { label: string; pph: number }[] = [
+  { label: "6 h", pph: 220 },
+  { label: "12 h", pph: 110 },
+  { label: "18 h", pph: 72 },
+  { label: "24 h", pph: 54 },
+];
+
 export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
   const [days, setDays] = useState<DayView[]>([]);
   const [range, setRange] = useState<{ start: string; end: string } | null>(null);
@@ -14,8 +22,15 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [focusChapter, setFocusChapter] = useState<string | null>(null);
+  const [pph, setPph] = useState<number>(() => {
+    const saved = Number(localStorage.getItem("cadence.planner.pph"));
+    return ZOOMS.some((z) => z.pph === saved) ? saved : 110;
+  });
   const bottomRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const centered = useRef(false);
   const today = todayISO();
+  const trackW = pph * 24;
 
   useEffect(() => {
     api.get<Template[]>("api/templates").then(setTemplates).catch(() => undefined);
@@ -35,6 +50,33 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
       .catch((e) => toast(e.message, true))
       .finally(() => setLoading(false));
   }, [fetchRange, today]);
+
+  /** Scroll the shared horizontal axis so `hour` sits in the middle of the visible track area. */
+  const centerOn = useCallback(
+    (hour: number, px = pph) => {
+      const el = listRef.current;
+      if (!el) return;
+      const visible = el.clientWidth - HEAD_W;
+      el.scrollLeft = Math.max(0, hour * px - visible / 2);
+    },
+    [pph],
+  );
+
+  // First paint: centre the day on noon.
+  useEffect(() => {
+    if (centered.current || days.length === 0) return;
+    centered.current = true;
+    centerOn(12);
+  }, [days.length, centerOn]);
+
+  const zoomTo = (next: number) => {
+    const el = listRef.current;
+    const visible = el ? el.clientWidth - HEAD_W : 0;
+    const centerHour = el ? (el.scrollLeft + visible / 2) / pph : 12;
+    setPph(next);
+    localStorage.setItem("cadence.planner.pph", String(next));
+    requestAnimationFrame(() => centerOn(centerHour, next));
+  };
 
   const loadMore = useCallback(async () => {
     if (!range || loading) return;
@@ -59,8 +101,14 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
     setLoading(true);
     try {
       const d = await fetchRange(start, end);
+      const el = listRef.current;
+      const before = el?.scrollHeight ?? 0;
       setDays((cur) => [...d, ...cur]);
       setRange({ start, end: range.end });
+      // keep the rows the user was looking at in place
+      requestAnimationFrame(() => {
+        if (el) el.scrollTop += el.scrollHeight - before;
+      });
     } catch (e) {
       toast((e as Error).message, true);
     } finally {
@@ -71,9 +119,12 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
   useEffect(() => {
     const el = bottomRef.current;
     if (!el) return;
-    const io = new IntersectionObserver((entries) => {
-      if (entries.some((e) => e.isIntersecting)) void loadMore();
-    });
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) void loadMore();
+      },
+      { root: listRef.current },
+    );
     io.observe(el);
     return () => io.disconnect();
   }, [loadMore]);
@@ -88,85 +139,124 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
 
   const selectedView = useMemo(() => days.find((d) => d.date === selected) ?? null, [days, selected]);
   const st = live.status;
+  const nowHour = st ? (() => { const d = new Date(st.now); return d.getHours() + d.getMinutes() / 60; })() : 12;
 
   return (
-    <div className="grid h-full grid-cols-1 lg:grid-cols-[1fr_380px]">
-      <div className={"overflow-auto px-4 py-3 " + (selected ? "hidden lg:block" : "")}>
-        <div className="mb-2 flex items-center justify-between gap-3">
+    <div className="grid h-full grid-cols-1 lg:grid-cols-[minmax(0,1fr)_380px]">
+      <div className={"flex min-h-0 min-w-0 flex-col " + (selected ? "hidden lg:flex" : "")}>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-base-300 px-4 py-2">
           <div className="text-xs opacity-60">
-            Each row is a day: chapters left to right, <span className="text-accent">■</span> auto windows, <span className="text-primary">■</span> calendar events. Click a day to plan it.
+            Each row is a day. Scroll sideways through the hours; <span className="text-accent">■</span> auto windows, <span className="text-primary">■</span> calendar events. Click a day to plan it.
           </div>
-          <button className="btn btn-xs btn-ghost" disabled={loading} onClick={loadEarlier}>
-            ↑ earlier days
-          </button>
-        </div>
-        {days.map((d, i) => {
-          const month = d.date.slice(0, 7);
-          const showMonth = i === 0 || days[i - 1].date.slice(0, 7) !== month;
-          const dt = new Date(d.date + "T12:00:00");
-          const weekend = dt.getDay() === 0 || dt.getDay() === 6;
-          const isToday = d.date === today;
-          const tweaks = d.plan?.chapter_overrides.length ?? 0;
-          return (
-            <div key={d.date}>
-              {showMonth ? <div className="monthhead display text-xl opacity-80">{dt.toLocaleDateString([], { month: "long", year: "numeric" })}</div> : null}
-              <div className={"grid grid-cols-[150px_1fr] items-start gap-3 border-b border-base-300 py-2 " + (isToday ? "bg-accent/5" : "")}>
-                <button
-                  type="button"
-                  className={"flex flex-col items-start gap-1 rounded-box px-2 py-1.5 text-left hover:bg-base-200 " + (selected === d.date ? "bg-base-200 ring-1 ring-primary/60" : "")}
-                  onClick={() => setSelected(selected === d.date ? null : d.date)}
-                >
-                  <div className={"display text-lg leading-none " + (isToday ? "text-accent" : weekend ? "opacity-70" : "")}>
-                    {dt.toLocaleDateString([], { weekday: "short" })} {dt.getDate()}
-                    {isToday ? <span className="badge badge-xs badge-accent ml-2 align-middle">today</span> : null}
-                  </div>
-                  <div className="text-[11px] opacity-60">
-                    {d.template_name ?? "no template"}
-                    {d.plan?.template_id ? " · override" : ""}
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {d.occupied ? <span className="badge badge-xs badge-primary badge-soft">occupied</span> : null}
-                    {d.auto_mode === "off" ? <span className="badge badge-xs badge-ghost">auto off</span> : d.auto_mode === "on" ? <span className="badge badge-xs badge-accent badge-soft">auto on</span> : null}
-                    {tweaks || d.plan?.notes ? <span className="badge badge-xs badge-outline">{tweaks ? `${tweaks} tweak${tweaks > 1 ? "s" : ""}` : "note"}</span> : null}
-                  </div>
-                  {d.events.length ? (
-                    <div className="flex flex-wrap gap-1">
-                      {d.events.slice(0, 3).map((e, j) => (
-                        <span key={j} className="badge badge-xs badge-primary badge-soft max-w-[140px] truncate" title={e.summary ?? ""}>
-                          {e.all_day ? "" : fmtTime(e.start) + " "}
-                          {e.summary}
-                        </span>
-                      ))}
-                      {d.events.length > 3 ? <span className="badge badge-xs badge-ghost">+{d.events.length - 3}</span> : null}
-                    </div>
-                  ) : null}
+          <div className="flex items-center gap-2">
+            <button className="btn btn-xs btn-ghost" onClick={() => centerOn(12)} title="Centre on noon">
+              Noon
+            </button>
+            <button className="btn btn-xs btn-ghost" onClick={() => centerOn(nowHour)} title="Centre on the current time">
+              Now
+            </button>
+            <div className="join">
+              {ZOOMS.map((z) => (
+                <button key={z.pph} className={"btn btn-xs join-item " + (pph === z.pph ? "btn-neutral" : "btn-outline border-base-300")} onClick={() => zoomTo(z.pph)} title={`${z.label} across the view`}>
+                  {z.label}
                 </button>
-                <div className="overflow-x-auto pb-0.5">
-                  <div className="min-w-[720px]">
-                    <Track
-                      chapters={d.chapters}
-                      date={d.date}
-                      now={st?.now}
-                      sunrise={d.sunrise}
-                      sunset={d.sunset}
-                      autoWindows={d.auto_windows}
-                      autoMode={d.auto_mode}
-                      events={d.events}
-                      currentId={isToday ? st?.chapter?.id : null}
-                      variantOf={(c) => (isToday && st?.chapter?.id === c.chapter_id ? st?.variant?.label : c.forced_variant ? c.forced_variant : null)}
-                      onChapter={(c) => {
-                        setSelected(d.date);
-                        setFocusChapter(c.chapter_id);
-                      }}
-                    />
+              ))}
+            </div>
+            <button className="btn btn-xs btn-ghost" disabled={loading} onClick={loadEarlier}>
+              ↑ earlier
+            </button>
+          </div>
+        </div>
+
+        <div ref={listRef} className="relative min-h-0 flex-1 overflow-auto">
+          <div style={{ width: HEAD_W + trackW + 16 }}>
+            {/* Shared hour ruler, pinned to the top */}
+            <div className="sticky top-0 z-20 flex bg-base-100/95 backdrop-blur">
+              <div className="sticky left-0 z-10 shrink-0 bg-base-100" style={{ width: HEAD_W }} />
+              <div className="relative h-7 border-b border-base-300" style={{ width: trackW }}>
+                {Array.from({ length: 25 }, (_, h) => (
+                  <div key={h} className="absolute bottom-0 h-2 border-l border-base-content/25" style={{ left: h * pph }}>
+                    {h < 24 ? <span className="absolute -top-4 left-1 font-mono text-[10px] opacity-60">{String(h).padStart(2, "0")}:00</span> : null}
                   </div>
-                </div>
+                ))}
               </div>
             </div>
-          );
-        })}
-        <div ref={bottomRef} className="flex h-12 items-center justify-center gap-2 text-xs opacity-60">
-          {loading ? <span className="loading loading-dots loading-sm" /> : "scroll for more"}
+
+            {days.map((d, i) => {
+              const month = d.date.slice(0, 7);
+              const showMonth = i === 0 || days[i - 1].date.slice(0, 7) !== month;
+              const dt = new Date(d.date + "T12:00:00");
+              const weekend = dt.getDay() === 0 || dt.getDay() === 6;
+              const isToday = d.date === today;
+              const tweaks = d.plan?.chapter_overrides.length ?? 0;
+              return (
+                <div key={d.date}>
+                  {showMonth ? (
+                    <div className="sticky left-0 z-10 w-max bg-base-100 px-4 pt-3 pb-1">
+                      <span className="display text-xl opacity-80">{dt.toLocaleDateString([], { month: "long", year: "numeric" })}</span>
+                    </div>
+                  ) : null}
+                  <div className={"flex items-stretch border-b border-base-300 " + (isToday ? "bg-accent/5" : "")}>
+                    <div className="sticky left-0 z-10 shrink-0 border-r border-base-300 bg-base-100 px-2 py-2" style={{ width: HEAD_W }}>
+                      <button
+                        type="button"
+                        className={"flex w-full flex-col items-start gap-1 rounded-box px-2 py-1.5 text-left hover:bg-base-200 " + (selected === d.date ? "bg-base-200 ring-1 ring-primary/60" : "")}
+                        onClick={() => setSelected(selected === d.date ? null : d.date)}
+                      >
+                        <div className={"display text-lg leading-none " + (isToday ? "text-accent" : weekend ? "opacity-70" : "")}>
+                          {dt.toLocaleDateString([], { weekday: "short" })} {dt.getDate()}
+                          {isToday ? <span className="badge badge-xs badge-accent ml-2 align-middle">today</span> : null}
+                        </div>
+                        <div className="text-[11px] opacity-60">
+                          {d.template_name ?? "no template"}
+                          {d.plan?.template_id ? " · override" : ""}
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {d.occupied ? <span className="badge badge-xs badge-primary badge-soft">occupied</span> : null}
+                          {d.auto_mode === "off" ? <span className="badge badge-xs badge-ghost">auto off</span> : d.auto_mode === "on" ? <span className="badge badge-xs badge-accent badge-soft">auto on</span> : null}
+                          {tweaks || d.plan?.notes ? <span className="badge badge-xs badge-outline">{tweaks ? `${tweaks} tweak${tweaks > 1 ? "s" : ""}` : "note"}</span> : null}
+                        </div>
+                        {d.events.length ? (
+                          <div className="flex flex-wrap gap-1">
+                            {d.events.slice(0, 2).map((e, j) => (
+                              <span key={j} className="badge badge-xs badge-primary badge-soft max-w-[130px] truncate" title={e.summary ?? ""}>
+                                {e.all_day ? "" : fmtTime(e.start) + " "}
+                                {e.summary}
+                              </span>
+                            ))}
+                            {d.events.length > 2 ? <span className="badge badge-xs badge-ghost">+{d.events.length - 2}</span> : null}
+                          </div>
+                        ) : null}
+                      </button>
+                    </div>
+                    <div className="py-2 pl-2" style={{ width: trackW + 8 }}>
+                      <Track
+                        chapters={d.chapters}
+                        date={d.date}
+                        now={st?.now}
+                        sunrise={d.sunrise}
+                        sunset={d.sunset}
+                        autoWindows={d.auto_windows}
+                        autoMode={d.auto_mode}
+                        events={d.events}
+                        currentId={isToday ? st?.chapter?.id : null}
+                        hourLabels={false}
+                        className="h-16"
+                        variantOf={(c) => (isToday && st?.chapter?.id === c.chapter_id ? st?.variant?.label : c.forced_variant ? c.forced_variant : null)}
+                        onChapter={(c) => {
+                          setSelected(d.date);
+                          setFocusChapter(c.chapter_id);
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            <div ref={bottomRef} className="sticky left-0 flex h-12 w-max items-center gap-2 px-4 text-xs opacity-60">
+              {loading ? <span className="loading loading-dots loading-sm" /> : "scroll for more days"}
+            </div>
+          </div>
         </div>
       </div>
       <aside className={"overflow-auto border-l border-base-300 bg-base-200 px-4 py-3 " + (selected ? "" : "hidden lg:block")}>
