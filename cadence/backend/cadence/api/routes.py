@@ -178,6 +178,24 @@ def build_router(engine: Engine) -> APIRouter:
             raise HTTPException(404, "unknown entity")
         return st
 
+    # ---------------------------------------------------------------- spotify
+    @r.get("/spotify/search")
+    async def spotify_search(q: str = Query(..., min_length=1), type: str = "playlist", limit: int = 12) -> dict:
+        try:
+            items = await engine.spotify_search(q.strip(), type, limit)
+        except (RuntimeError, ValueError) as exc:
+            raise HTTPException(400, str(exc)) from exc
+        except Exception as exc:  # noqa: BLE001 — HA / Spotify error
+            raise HTTPException(502, f"Spotify search failed: {exc}") from exc
+        return {"entity": engine.spotify_entity(), "items": items}
+
+    @r.get("/spotify/devices")
+    async def spotify_devices() -> dict:
+        eid = engine.spotify_entity()
+        st = engine.ha.states.get(eid) if eid else None
+        devices = list(((st or {}).get("attributes") or {}).get("source_list") or [])
+        return {"entity": eid, "devices": devices}
+
     # ---------------------------------------------------------------- engine controls
     @r.post("/engine/apply")
     async def apply(body: ApplyBody) -> dict:

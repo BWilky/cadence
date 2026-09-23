@@ -1,20 +1,8 @@
 import { useEffect, useState } from "react";
 import { api, slug } from "../api";
+import { MusicRow } from "../components/MusicRow";
 import { COLORS, ColorDots, Confirm, EntityPicker, Field, NumberInput, loadEntities, toast, useEntities } from "../components/ui";
 import type { CadenceScene, HAAction, MusicAction, MusicKind, SceneLink, Settings } from "../types";
-
-const KINDS: { k: MusicKind; label: string }[] = [
-  { k: "volume_fade", label: "Fade volume" },
-  { k: "volume_set", label: "Set volume" },
-  { k: "mute", label: "Mute" },
-  { k: "unmute", label: "Unmute" },
-  { k: "source", label: "Select source" },
-  { k: "play_playlist", label: "Play playlist / URI" },
-  { k: "play", label: "Play" },
-  { k: "pause", label: "Pause" },
-  { k: "stop", label: "Stop" },
-  { k: "service", label: "Custom service" },
-];
 
 export function Scenes() {
   const [list, setList] = useState<CadenceScene[]>([]);
@@ -193,19 +181,41 @@ function SceneEditor(props: { scene: CadenceScene; settings: Settings; onSaved: 
             <MusicRow key={i} m={m} onChange={(p) => setMusic(i, p)} onRemove={() => setS({ ...s, music: s.music.filter((_, j) => j !== i) })} />
           ))}
           <div className="flex flex-wrap gap-2">
-            <button className="btn btn-sm btn-outline" onClick={() => setS({ ...s, music: [...s.music, { kind: "volume_fade", entity_id: "", volume: 0.1, minutes: 10, delay_seconds: 0 }] })}>
+            <button className="btn btn-sm btn-primary" onClick={() => setS({ ...s, music: [...s.music, { kind: "spotify_context", entity_id: "", media_content_id: null, media_content_type: "playlist", shuffle: true, delay_seconds: 0 }] })}>
+              + Play on Spotify
+            </button>
+            <button className="btn btn-sm btn-outline" onClick={() => setS({ ...s, music: [...s.music, { kind: "volume_fade", entity_id: "", volume: 0.1, minutes: 10, from_zero: false, delay_seconds: 0 }] })}>
               + Music action
             </button>
-            <button
-              className="btn btn-sm btn-ghost"
-              onClick={async () => {
-                const players = (await loadEntities("media_player")).filter((p) => p.entity_id.includes("bose_csp"));
-                if (!players.length) return toast("No Bose CSP players found", true);
-                setS({ ...s, music: [...s.music, ...players.map((p) => ({ kind: "volume_fade" as MusicKind, entity_id: p.entity_id, volume: 0.1, minutes: 10, delay_seconds: 0 }))] });
-              }}
-            >
-              + Fade all Bose zones
-            </button>
+            <div className="dropdown dropdown-end">
+              <div tabIndex={0} role="button" className="btn btn-sm btn-ghost">
+                Bose zones ▾
+              </div>
+              <ul tabIndex={0} className="menu dropdown-content z-30 w-64 rounded-box border border-base-300 bg-base-100 p-2 shadow">
+                {(
+                  [
+                    ["Fade all zones to a level", (e: string) => ({ kind: "volume_fade" as MusicKind, entity_id: e, volume: 0.1, minutes: 10, from_zero: false, delay_seconds: 0 })],
+                    ["Fade all zones up from zero", (e: string) => ({ kind: "volume_fade" as MusicKind, entity_id: e, volume: 0.1, minutes: 10, from_zero: true, delay_seconds: 0 })],
+                    ["Mute all zones", (e: string) => ({ kind: "mute" as MusicKind, entity_id: e, delay_seconds: 0 })],
+                    ["Unmute all zones", (e: string) => ({ kind: "unmute" as MusicKind, entity_id: e, delay_seconds: 0 })],
+                    ["Set every zone's source", (e: string) => ({ kind: "source" as MusicKind, entity_id: e, source: "Sonos", delay_seconds: 0 })],
+                  ] as [string, (e: string) => MusicAction][]
+                ).map(([label, make]) => (
+                  <li key={label}>
+                    <button
+                      onClick={async () => {
+                        const players = (await loadEntities("media_player")).filter((p) => p.entity_id.includes("bose_csp"));
+                        if (!players.length) return toast("No Bose CSP players found", true);
+                        setS({ ...s, music: [...s.music, ...players.map((p) => make(p.entity_id))] });
+                        (document.activeElement as HTMLElement | null)?.blur();
+                      }}
+                    >
+                      {label}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         </div>
       </div>
@@ -261,97 +271,6 @@ function SceneEditor(props: { scene: CadenceScene; settings: Settings; onSaved: 
           </button>
         ) : null}
       </div>
-    </div>
-  );
-}
-
-function MusicRow({ m, onChange, onRemove }: { m: MusicAction; onChange: (p: Partial<MusicAction>) => void; onRemove: () => void }) {
-  const players = useEntities("media_player");
-  const player = players.find((p) => p.entity_id === m.entity_id);
-  return (
-    <div className="flex flex-wrap items-end gap-3 rounded-box border border-base-300 bg-base-200/60 p-3">
-      <Field label="Action">
-        <select className="select select-sm w-44" value={m.kind} onChange={(e) => onChange({ kind: e.target.value as MusicKind })}>
-          {KINDS.map((k) => (
-            <option key={k.k} value={k.k}>
-              {k.label}
-            </option>
-          ))}
-        </select>
-      </Field>
-      <Field label="Player" className="min-w-56 flex-1">
-        <EntityPicker value={m.entity_id} domain="media_player" allowClear={false} onChange={(v) => v && onChange({ entity_id: v })} />
-      </Field>
-      {m.kind === "volume_fade" || m.kind === "volume_set" ? (
-        <Field label={`Volume ${Math.round((m.volume ?? 0) * 100)}%`}>
-          <input type="range" className="range range-primary range-xs w-36" min={0} max={1} step={0.01} value={m.volume ?? 0} onChange={(e) => onChange({ volume: Number(e.target.value) })} />
-        </Field>
-      ) : null}
-      {m.kind === "volume_fade" ? (
-        <Field label="Over (min)">
-          <NumberInput value={m.minutes} onChange={(v) => onChange({ minutes: v ?? 0 })} step={1} min={0} width={76} />
-        </Field>
-      ) : null}
-      {m.kind === "source" ? (
-        <Field label="Source">
-          {player?.source_list?.length ? (
-            <select className="select select-sm w-40" value={m.source ?? ""} onChange={(e) => onChange({ source: e.target.value })}>
-              <option value="">—</option>
-              {player.source_list.map((src) => (
-                <option key={src}>{src}</option>
-              ))}
-            </select>
-          ) : (
-            <input type="text" className="input input-sm w-40" value={m.source ?? ""} onChange={(e) => onChange({ source: e.target.value })} />
-          )}
-        </Field>
-      ) : null}
-      {m.kind === "play_playlist" ? (
-        <>
-          <Field label="URI (spotify:playlist:…)" className="min-w-64 flex-1">
-            <input type="text" className="input input-sm w-full font-mono" value={m.media_content_id ?? ""} onChange={(e) => onChange({ media_content_id: e.target.value })} placeholder="spotify:playlist:37i9dQZF1DX…" />
-          </Field>
-          <Field label="Type">
-            <select className="select select-sm w-28" value={m.media_content_type ?? "playlist"} onChange={(e) => onChange({ media_content_type: e.target.value })}>
-              <option>playlist</option>
-              <option>album</option>
-              <option>artist</option>
-              <option>track</option>
-              <option>music</option>
-            </select>
-          </Field>
-          <Field label="Shuffle">
-            <input type="checkbox" className="toggle toggle-sm toggle-primary" checked={!!m.shuffle} onChange={(e) => onChange({ shuffle: e.target.checked })} />
-          </Field>
-        </>
-      ) : null}
-      {m.kind === "service" ? (
-        <>
-          <Field label="Service">
-            <input type="text" className="input input-sm w-64 font-mono" value={m.service ?? ""} onChange={(e) => onChange({ service: e.target.value })} placeholder="spotifyplus.player_media_play_context" />
-          </Field>
-          <Field label="Data JSON" className="flex-1">
-            <input
-              type="text"
-              className="input input-sm w-full font-mono"
-              defaultValue={m.data ? JSON.stringify(m.data) : ""}
-              onBlur={(e) => {
-                try {
-                  onChange({ data: e.target.value ? JSON.parse(e.target.value) : null });
-                } catch {
-                  toast("Invalid JSON", true);
-                }
-              }}
-            />
-          </Field>
-        </>
-      ) : null}
-      <Field label="Delay (s)">
-        <NumberInput value={m.delay_seconds ?? 0} onChange={(v) => onChange({ delay_seconds: v ?? 0 })} step={1} min={0} width={76} />
-      </Field>
-      <button className="btn btn-ghost btn-sm text-error" onClick={onRemove}>
-        ✕
-      </button>
     </div>
   );
 }

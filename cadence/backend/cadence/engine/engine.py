@@ -177,8 +177,44 @@ class Engine:
             self._emit_zones(s)
 
     def _current_template_chapters(self) -> list[Chapter]:
-        t = self._template_for(self.now().date())
-        return t.chapters if t else []
+        return self._chapters_for(self.now().date())
+
+    def _chapters_for(self, day: date) -> list[Chapter]:
+        """Template chapters plus any chapters that exist on this date only."""
+        t = self._template_for(day)
+        p = self.plan(day)
+        return list(t.chapters if t else []) + list(p.extra_chapters if p else [])
+
+    @staticmethod
+    def _representative_variant(ch: Chapter, forced: str | None) -> Variant | None:
+        if not ch.variants:
+            return None
+        if forced:
+            for v in ch.variants:
+                if v.key == forced:
+                    return v
+        for v in ch.variants:
+            if v.when.is_empty():
+                return v
+        return ch.variants[0]
+
+    def _enrich_music(self, chapters: list[ResolvedChapter], by_id: dict[str, Chapter], scenes: dict[str, CadenceScene]) -> None:
+        """Attach the music actions of each chapter's likely variant, for the planner's music strip."""
+        for r in chapters:
+            ch = by_id.get(r.chapter_id)
+            if not ch:
+                continue
+            v = self._representative_variant(ch, r.forced_variant)
+            out: list[dict] = []
+            for sid in v.scene_ids if v else []:
+                sc = scenes.get(sid)
+                if not sc:
+                    continue
+                for m in sc.music:
+                    d = m.model_dump(exclude_none=True)
+                    d["scene"] = sc.name
+                    out.append(d)
+            r.music = out
 
     def _is_chapter_motion(self, entity_id: str) -> bool:
         return any(ch.motion_entity == entity_id for ch in self._current_template_chapters())
@@ -426,10 +462,13 @@ class Engine:
             except TimeoutError:
                 pass
 
-    def _resolve(self, day: date, s: Settings) -> tuple[Template | None, DayPlan | None, list[ResolvedChapter]]:
+    def _resolve(self, day: date, s: Settings, *, with_music: bool = False) -> tuple[Template | None, DayPlan | None, list[ResolvedChapter]]:
         t = self._template_for(day)
         p = self.plan(day)
         chapters = resolve_day(day, t, p, s, self.tz, self.sun)
+        if with_music:
+            by_id = {c.id: c for c in (list(t.chapters) if t else []) + (list(p.extra_chapters) if p else [])}
+            self._enrich_music(chapters, by_id, self.scenes())
         # Apply previously triggered conditional starts.
         for r in chapters:
             key = f"{day.isoformat()}|{r.chapter_id}"
@@ -443,7 +482,7 @@ class Engine:
     ) -> bool:
         """Start motion/asleep chapters whose condition has come true. Returns True if any fired."""
         fired = False
-        by_id = {c.id: c for c in (t.chapters if t else [])}
+        by_id = {c.id: c for c in self._chapters_for(day)}
         for r in chapters:
             if not r.pending_condition or not r.enabled:
                 continue
@@ -513,7 +552,7 @@ class Engine:
         self.sky.cfg = s.sky
         now = self.now()
         day = now.date()
-        tmpl, plan, chapters = self._resolve(day, s)
+        tmpl, plan, chapters = self._resolve(day, s, with_music=True)
 
         # Senses
         lux, lux_age = self._lux(s)
@@ -545,12 +584,8 @@ class Engine:
 
         chapter_obj: Chapter | None = None
         if current:
-            src_t = tmpl if not carried else self._template_for(add_days(day, -1))
-            if src_t:
-                chapter_obj = next((c for c in src_t.chapters if c.id == current.chapter_id), None)
-                if chapter_obj:
-                    # honour per-day start overrides only; variants come from the template
-                    pass
+            src_day = add_days(day, -1) if carried else day
+            chapter_obj = next((c for c in self._chapters_for(src_day) if c.id == current.chapter_id), None)
 
         motion, motion_entity = self._motion(s, chapter_obj)
         ctx = {"sky": self.sky_reading.state, "motion": motion, "asleep": asleep, "occupied": occupied}
@@ -632,7 +667,7 @@ class Engine:
             s = self.settings()
             day = self.now().date()
             tmpl, plan, chapters = self._resolve(day, s)
-            if not tmpl:
+            if not chapters:
                 return False
             target_res = None
             if chapter_id:
@@ -641,7 +676,7 @@ class Engine:
                 target_res = latest_before(chapters, self.now())
             if not target_res:
                 return False
-            ch = next((c for c in tmpl.chapters if c.id == target_res.chapter_id), None)
+            ch = next((c for c in self._chapters_for(day) if c.id == target_res.chapter_id), None)
             if not ch:
                 return False
             self.release_hold("released by manual apply")
@@ -671,6 +706,56 @@ class Engine:
         self._persist_runtime()
         self._log("info", "auto", f"Auto mode override set to {mode} for today")
         self.wake()
+
+    # ------------------------------------------------------------------ spotify
+    def spotify_entity(self, s: Settings | None = None) -> str | None:
+        s = s or self.settings()
+        if s.spotify_entity:
+            return s.spotify_entity
+        for eid, st in self.ha.states.items():
+            if eid.startswith("media_player.") and "sp_user_id" in (st.get("attributes") or {}):
+                return eid
+        return None
+
+    async def spotify_search(self, query: str, kind: str, limit: int = 12) -> list[dict]:
+        """Search playlists / albums / artists through the SpotifyPlus integration (read-only)."""
+        eid = self.spotify_entity()
+        if not eid:
+            raise RuntimeError("no SpotifyPlus media_player configured (Settings → Music)")
+        service = {"playlist": "search_playlists", "album": "search_albums", "artist": "search_artists"}.get(kind)
+        if not service:
+            raise ValueError("type must be playlist, album or artist")
+        res = await self.ha.call_service(
+            "spotifyplus", service, data={"entity_id": eid, "criteria": query, "limit_total": max(1, min(limit, 50))}, return_response=True
+        )
+        body = (res or {}).get("response") or {}
+        items = ((body.get("result") or {}).get("items")) or []
+        out: list[dict] = []
+        for it in items:
+            if not it:
+                continue
+            images = it.get("images") or []
+            if kind == "playlist":
+                sub = (it.get("owner") or {}).get("display_name") or ""
+                extra = f"{it.get('tracks', {}).get('total', '')} tracks" if isinstance(it.get("tracks"), dict) else ""
+            elif kind == "album":
+                sub = ", ".join(a.get("name", "") for a in it.get("artists") or [])
+                extra = str(it.get("release_date") or "")[:4]
+            else:
+                sub = ", ".join((it.get("genres") or [])[:3])
+                extra = f"{(it.get('followers') or {}).get('total', '')} followers" if it.get("followers") else ""
+            out.append(
+                {
+                    "uri": it.get("uri"),
+                    "name": it.get("name"),
+                    "type": kind,
+                    "subtitle": sub,
+                    "extra": extra,
+                    "image": images[-1].get("url") if images else None,  # smallest image last
+                    "image_large": images[0].get("url") if images else None,
+                }
+            )
+        return [o for o in out if o["uri"]]
 
     # ------------------------------------------------------------------ status
     def _zones(self, s: Settings) -> dict[str, float]:
@@ -781,7 +866,7 @@ class Engine:
         out: list[DayView] = []
         d = start
         while d <= end:
-            tmpl, plan, chapters = self._resolve(d, s)
+            tmpl, plan, chapters = self._resolve(d, s, with_music=True)
             mode, wins = auto_windows_for(d, s, plan)
             sr = self.sun.event(d, "sunrise") if self.sun else None
             ss = self.sun.event(d, "sunset") if self.sun else None

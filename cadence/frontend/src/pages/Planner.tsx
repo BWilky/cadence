@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { addDays, api, describeStart, fmtTime, todayISO, type useLive } from "../api";
-import { StartEditor, WindowsEditor } from "../components/StartEditor";
-import { Track } from "../components/Track";
-import { Field, Pill, toast } from "../components/ui";
-import type { ChapterOverride, DayPlan, DayView, ResolvedChapter, Template } from "../types";
+import { addDays, api, describeStart, fmtTime, hhmm, todayISO, type useLive } from "../api";
+import { ChapterEditor } from "../components/ChapterEditor";
+import { ContextMenu, type MenuItem, type MenuState } from "../components/ContextMenu";
+import { StartEditor, WindowsEditor, defaultStart } from "../components/StartEditor";
+import { Track, type TrackContext } from "../components/Track";
+import { COLORS, Confirm, Field, Pill, toast } from "../components/ui";
+import type { CadenceScene, Chapter, ChapterOverride, DayPlan, DayView, ResolvedChapter, Template } from "../types";
 
 const CHUNK = 21;
 
@@ -21,7 +23,10 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [templates, setTemplates] = useState<Template[]>([]);
+  const [scenes, setScenes] = useState<CadenceScene[]>([]);
   const [focusChapter, setFocusChapter] = useState<string | null>(null);
+  const [menu, setMenu] = useState<MenuState | null>(null);
+  const [request, setRequest] = useState<EditRequest | null>(null);
   const [pph, setPph] = useState<number>(() => {
     const saved = Number(localStorage.getItem("cadence.planner.pph"));
     return ZOOMS.some((z) => z.pph === saved) ? saved : 110;
@@ -34,6 +39,7 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
 
   useEffect(() => {
     api.get<Template[]>("api/templates").then(setTemplates).catch(() => undefined);
+    api.get<CadenceScene[]>("api/scenes").then(setScenes).catch(() => undefined);
   }, []);
 
   const fetchRange = useCallback(async (start: string, end: string) => api.get<DayView[]>(`api/days?start=${start}&end=${end}`), []);
@@ -139,6 +145,82 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
 
   const selectedView = useMemo(() => days.find((d) => d.date === selected) ?? null, [days, selected]);
   const st = live.status;
+
+  /** Save a mutation of a day's plan straight away (right-click actions are immediate). */
+  const mutatePlan = useCallback(
+    async (d: DayView, fn: (p: DayPlan) => DayPlan, ok: string) => {
+      try {
+        const next = fn(d.plan ?? emptyPlan(d.date));
+        await api.put(`api/plans/${d.date}`, next);
+        await refreshDay(d.date);
+        toast(ok);
+      } catch (e) {
+        toast((e as Error).message, true);
+      }
+    },
+    [refreshDay],
+  );
+
+  const openMenu = (d: DayView, ctx: TrackContext) => {
+    const at = hhmm(ctx.minute);
+    const isToday = d.date === today;
+    const c = ctx.chapter;
+    const items: MenuItem[] = [];
+    if (c) {
+      const ov = d.plan?.chapter_overrides.find((o) => o.chapter_id === c.chapter_id);
+      items.push({ label: c.name, title: true });
+      items.push({
+        label: c.source === "day" ? "Edit chapter…" : "Edit for this day…",
+        onClick: () => {
+          setSelected(d.date);
+          setFocusChapter(c.chapter_id);
+          setRequest({ date: d.date, kind: "focus", chapterId: c.chapter_id });
+        },
+      });
+      if (c.variants.length > 1)
+        items.push({
+          label: "Variant for this day",
+          children: [
+            { label: "Auto", disabled: !ov?.variant_key, onClick: () => mutatePlan(d, (p) => setOverride(p, c.chapter_id, { variant_key: null }), "Variant back to auto") },
+            ...c.variants.map((v) => ({ label: v.label, disabled: ov?.variant_key === v.key, onClick: () => mutatePlan(d, (p) => setOverride(p, c.chapter_id, { variant_key: v.key }), `${c.name} → ${v.label}`) })),
+          ],
+        });
+      items.push({ label: `Move start to ${at}`, hint: at, onClick: () => mutatePlan(d, (p) => setOverride(p, c.chapter_id, { start: { ...defaultStart("clock"), time: at } }), `${c.name} starts ${at}`) });
+      if (ov?.start) items.push({ label: "Reset start to template", onClick: () => mutatePlan(d, (p) => setOverride(p, c.chapter_id, { start: null }), "Start reset") });
+      items.push({
+        label: "Duplicate here (this day only)",
+        hint: at,
+        onClick: () => mutatePlan(d, (p) => ({ ...p, extra_chapters: [...p.extra_chapters, dayChapterFrom(c, at, templates, d)] }), `Copied ${c.name} to ${at}`),
+      });
+      items.push({
+        label: "Add new chapter here (this day only)",
+        hint: at,
+        onClick: () => {
+          const ch = newDayChapter(at, d, templates);
+          setSelected(d.date);
+          setRequest({ date: d.date, kind: "add", chapter: ch });
+        },
+      });
+      if (isToday) items.push({ label: "Apply now", onClick: () => api.post("api/engine/apply", { chapter_id: c.chapter_id }).then(() => toast(`Applied ${c.name}`), (e) => toast(e.message, true)) });
+      items.push({ divider: true, label: "" });
+      if (c.source === "day") items.push({ label: "Remove from this day", danger: true, onClick: () => mutatePlan(d, (p) => ({ ...p, extra_chapters: p.extra_chapters.filter((x) => x.id !== c.chapter_id), chapter_overrides: p.chapter_overrides.filter((o) => o.chapter_id !== c.chapter_id) }), `Removed ${c.name}`) });
+      else items.push({ label: "Skip for this day", danger: true, onClick: () => mutatePlan(d, (p) => setOverride(p, c.chapter_id, { enabled: false }), `${c.name} skipped on ${d.date}`) });
+    } else {
+      items.push({ label: `${new Date(d.date + "T12:00:00").toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })} · ${at}`, title: true });
+      items.push({
+        label: "Add chapter here (this day only)",
+        hint: at,
+        onClick: () => {
+          const ch = newDayChapter(at, d, templates);
+          setSelected(d.date);
+          setRequest({ date: d.date, kind: "add", chapter: ch });
+        },
+      });
+      items.push({ label: "Plan this day…", onClick: () => setSelected(d.date) });
+      if (isToday) items.push({ label: "Recompute now", onClick: () => api.post("api/engine/recompute").then(() => toast("Recomputed")) });
+    }
+    setMenu({ x: ctx.x, y: ctx.y, items });
+  };
   const nowHour = st ? (() => { const d = new Date(st.now); return d.getHours() + d.getMinutes() / 60; })() : 12;
 
   return (
@@ -247,6 +329,7 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
                           setSelected(d.date);
                           setFocusChapter(c.chapter_id);
                         }}
+                        onContext={(ctx) => openMenu(d, ctx)}
                       />
                     </div>
                   </div>
@@ -265,6 +348,9 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
             key={selectedView.date}
             view={selectedView}
             templates={templates}
+            scenes={scenes}
+            request={request?.date === selectedView.date ? request : null}
+            onRequestHandled={() => setRequest(null)}
             focusChapter={focusChapter}
             onClose={() => {
               setSelected(null);
@@ -280,17 +366,78 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
           </div>
         )}
       </aside>
+      <ContextMenu menu={menu} onClose={() => setMenu(null)} />
     </div>
   );
 }
 
+type EditRequest = { date: string; kind: "add"; chapter: Chapter } | { date: string; kind: "focus"; chapterId: string };
+
 function emptyPlan(date: string): DayPlan {
-  return { date, template_id: null, chapter_overrides: [], auto: "default", auto_windows: [], occupied: null, notes: "" };
+  return { date, template_id: null, chapter_overrides: [], extra_chapters: [], auto: "default", auto_windows: [], occupied: null, notes: "" };
 }
 
-function DayEditor(props: { view: DayView; templates: Template[]; focusChapter: string | null; onClose: () => void; onSaved: () => void }) {
+function setOverride(p: DayPlan, cid: string, patch: Partial<ChapterOverride>): DayPlan {
+  const rest = p.chapter_overrides.filter((o) => o.chapter_id !== cid);
+  const cur = p.chapter_overrides.find((o) => o.chapter_id === cid) ?? { chapter_id: cid };
+  const next = { ...cur, ...patch };
+  const empty = next.start == null && next.variant_key == null && next.enabled == null;
+  return { ...p, chapter_overrides: empty ? rest : [...rest, next] };
+}
+
+function newDayChapter(at: string, d: DayView, templates: Template[]): Chapter {
+  const n = (d.plan?.extra_chapters.length ?? 0) + 1;
+  const tmpl = templates.find((t) => t.id === d.template_id);
+  return {
+    id: "day_" + Date.now().toString(36),
+    name: "New chapter",
+    note: "",
+    color: COLORS[(tmpl?.chapters.length ?? 0) + n] ?? COLORS[0],
+    enabled: true,
+    start: { ...defaultStart("clock"), time: at },
+    fade_minutes: 20,
+    variants: [{ key: "default", label: "Default", when: {}, scene_ids: [], note: "" }],
+    motion_entity: null,
+    motion_hold_minutes: 5,
+    reevaluate: true,
+    music_only_on_entry: true,
+  };
+}
+
+function dayChapterFrom(c: ResolvedChapter, at: string, templates: Template[], d: DayView): Chapter {
+  const src = templates.find((t) => t.id === d.template_id)?.chapters.find((x) => x.id === c.chapter_id) ?? d.plan?.extra_chapters.find((x) => x.id === c.chapter_id);
+  const base: Chapter = src
+    ? { ...src, variants: src.variants.map((v) => ({ ...v })) }
+    : { ...newDayChapter(at, d, templates), name: c.name, color: c.color ?? null, variants: c.variants.map((v) => ({ ...v })), fade_minutes: c.fade_minutes, note: c.note };
+  return { ...base, id: "day_" + Date.now().toString(36), name: base.name + " (copy)", start: { ...defaultStart("clock"), time: at } };
+}
+
+function DayEditor(props: {
+  view: DayView;
+  templates: Template[];
+  scenes: CadenceScene[];
+  request: EditRequest | null;
+  onRequestHandled: () => void;
+  focusChapter: string | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
   const { view } = props;
   const [plan, setPlan] = useState<DayPlan>(view.plan ?? emptyPlan(view.date));
+  const [openExtra, setOpenExtra] = useState<string | null>(null);
+  useEffect(() => {
+    const r = props.request;
+    if (!r) return;
+    if (r.kind === "add") {
+      setPlan((p) => ({ ...p, extra_chapters: [...p.extra_chapters, r.chapter] }));
+      setOpenExtra(r.chapter.id);
+    } else if (r.kind === "focus") {
+      const isExtra = (view.plan?.extra_chapters ?? []).some((c) => c.id === r.chapterId);
+      if (isExtra) setOpenExtra(r.chapterId);
+    }
+    props.onRequestHandled();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.request]);
   const [saving, setSaving] = useState(false);
   const tmplId = plan.template_id ?? view.template_id;
   const tmpl = props.templates.find((t) => t.id === tmplId);
@@ -315,7 +462,7 @@ function DayEditor(props: { view: DayView; templates: Template[]; focusChapter: 
   const save = async () => {
     setSaving(true);
     try {
-      const isEmpty = !plan.template_id && plan.chapter_overrides.length === 0 && plan.auto === "default" && plan.occupied == null && !plan.notes;
+      const isEmpty = !plan.template_id && plan.chapter_overrides.length === 0 && plan.extra_chapters.length === 0 && plan.auto === "default" && plan.occupied == null && !plan.notes;
       if (isEmpty) await api.del(`api/plans/${view.date}`);
       else await api.put(`api/plans/${view.date}`, plan);
       toast(`Saved ${view.date}`);
@@ -450,6 +597,37 @@ function DayEditor(props: { view: DayView; templates: Template[]; focusChapter: 
           </div>
         );
       })}
+
+      <div className="eyebrow mt-2">Chapters on this day only</div>
+      {plan.extra_chapters.length === 0 ? <p className="text-xs opacity-60">None. Right-click the day's track and choose "Add chapter here", or use the button below.</p> : null}
+      {plan.extra_chapters.map((c) => (
+        <div key={c.id} className={"collapse rounded-box border bg-base-100 " + (openExtra === c.id ? "collapse-open border-primary/50" : "collapse-close border-base-300")}>
+          <div className="collapse-title flex min-h-0 cursor-pointer items-center gap-2 py-2 pr-2" onClick={() => setOpenExtra(openExtra === c.id ? null : c.id)}>
+            <span className="swatch" style={{ background: c.color ?? "#556" }} />
+            <b className="text-sm">{c.name}</b>
+            <span className="font-mono text-xs opacity-60">{describeStart(c.start)}</span>
+            <span className="badge badge-xs badge-outline ml-auto">this day</span>
+            <span onClick={(e) => e.stopPropagation()}>
+              <Confirm text="Remove?" onYes={() => setPlan({ ...plan, extra_chapters: plan.extra_chapters.filter((x) => x.id !== c.id), chapter_overrides: plan.chapter_overrides.filter((o) => o.chapter_id !== c.id) })} className="btn btn-ghost btn-xs text-error">
+                ✕
+              </Confirm>
+            </span>
+          </div>
+          <div className="collapse-content">
+            {openExtra === c.id ? <ChapterEditor chapter={c} scenes={props.scenes} onChange={(patch) => setPlan({ ...plan, extra_chapters: plan.extra_chapters.map((x) => (x.id === c.id ? { ...x, ...patch } : x)) })} /> : null}
+          </div>
+        </div>
+      ))}
+      <button
+        className="btn btn-sm btn-outline border-dashed self-start"
+        onClick={() => {
+          const ch = newDayChapter("12:00", view, props.templates);
+          setPlan({ ...plan, extra_chapters: [...plan.extra_chapters, ch] });
+          setOpenExtra(ch.id);
+        }}
+      >
+        + Chapter for this day
+      </button>
 
       <div className="sticky bottom-0 -mx-4 flex gap-2 border-t border-base-300 bg-base-100 px-4 py-3">
         <button className="btn btn-primary btn-sm" disabled={saving || !dirty} onClick={save}>

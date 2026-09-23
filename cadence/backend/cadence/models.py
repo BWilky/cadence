@@ -52,6 +52,7 @@ class SceneLink(BaseModel):
 
 
 MusicKind = Literal[
+    "spotify_context",  # SpotifyPlus: play a playlist / album / artist context on a Spotify Connect device
     "volume_fade",  # ramp volume_level to `volume` over `minutes`
     "volume_set",
     "mute",
@@ -70,7 +71,11 @@ class MusicAction(BaseModel):
     entity_id: str
     volume: float | None = Field(default=None, ge=0, le=1)
     from_volume: float | None = Field(default=None, ge=0, le=1)
+    from_zero: bool = False  # fade: start from 0 instead of the current level
     minutes: float | None = Field(default=None, ge=0)
+    label: str | None = None  # human name of the playlist / album / artist (display only)
+    image: str | None = None  # cover art URL (display only)
+    device: str | None = None  # spotify_context: Spotify Connect device name or id; None = active device
     source: str | None = None
     media_content_id: str | None = None
     media_content_type: str | None = "playlist"
@@ -184,6 +189,7 @@ class DayPlan(BaseModel):
     date: str  # YYYY-MM-DD
     template_id: str | None = None
     chapter_overrides: list[ChapterOverride] = Field(default_factory=list)
+    extra_chapters: list[Chapter] = Field(default_factory=list)  # chapters that exist on this date only
     auto: Literal["default", "on", "off", "windows"] = "default"
     auto_windows: list[TimeWindow] = Field(default_factory=list)
     occupied: bool | None = None  # manual occupancy flag; None -> inferred from calendar
@@ -233,6 +239,8 @@ class Settings(BaseModel):
     # Calendar overlay
     calendars: list[str] = Field(default_factory=list)
     calendar_keywords: list[str] = Field(default_factory=list)  # empty -> any event counts
+    # Music
+    spotify_entity: str | None = None  # SpotifyPlus media_player used for search and context playback
     # Tablet
     zones: list[ZoneGlow] = Field(default_factory=list)
     site_name: str = "Cadence"
@@ -260,6 +268,8 @@ class ResolvedChapter(BaseModel):
     forced_variant: str | None = None
     enabled: bool = True
     note: str = ""
+    source: Literal["template", "day"] = "template"
+    music: list[dict] = Field(default_factory=list)  # representative music actions, for the timeline strip
 
 
 class DayView(BaseModel):

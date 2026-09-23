@@ -154,3 +154,46 @@ def test_settings_roundtrip(store):
     s = Settings(site_name="X")
     store.put(KIND_SETTINGS, "main", s.model_dump())
     assert Settings(**store.get(KIND_SETTINGS, "main")).site_name == "X"
+
+
+async def test_day_only_chapter_is_applied(engine, fake_ha):
+    from cadence.engine.engine import KIND_PLAN
+    from cadence.models import Chapter, ChapterStart, DayPlan, Variant
+
+    _configure(engine, fake_ha)
+    extra = Chapter(
+        id="pop_up",
+        name="Pop-up event",
+        start=ChapterStart(kind="clock", time="09:30"),
+        variants=[Variant(key="on", label="On", scene_ids=["evening_dark"])],
+    )
+    engine.store.put(KIND_PLAN, "2026-09-22", DayPlan(date="2026-09-22", extra_chapters=[extra]).model_dump())
+    _freeze(engine, datetime(2026, 9, 22, 9, 45, tzinfo=TZ))
+    await engine.tick()
+    assert engine.last_status.chapter["name"] == "Pop-up event"
+    assert ("scene", "turn_on", {"entity_id": "scene.evening"}, None) in fake_ha.calls
+    row = next(r for r in engine.last_status.timeline if r.chapter_id == "pop_up")
+    assert row.source == "day"
+
+
+async def test_spotify_context_and_fade_from_zero(engine, fake_ha):
+    from cadence.models import MusicAction
+
+    _configure(engine, fake_ha)
+    fake_ha.set("media_player.bose", "on", volume_level=0.5)
+    await engine.exec.run_music(
+        MusicAction(kind="spotify_context", entity_id="media_player.sp", media_content_id="spotify:playlist:abc", device="Dining Room", shuffle=True)
+    )
+    assert (
+        "spotifyplus",
+        "player_media_play_context",
+        None,
+        {"entity_id": "media_player.sp", "context_uri": "spotify:playlist:abc", "device_id": "Dining Room", "shuffle": True},
+    ) in fake_ha.calls
+    await engine.exec.run_music(MusicAction(kind="volume_fade", entity_id="media_player.bose", volume=0.3, minutes=0, from_zero=True))
+    # from_zero drops the zone to 0 before ramping; a 0-minute fade jumps straight to the target
+    import asyncio
+
+    await asyncio.sleep(0.05)
+    vols = [d["volume_level"] for (dom, svc, tgt, d) in fake_ha.calls if svc == "volume_set" and tgt == {"entity_id": "media_player.bose"}]
+    assert vols[:2] == [0.0, 0.3]

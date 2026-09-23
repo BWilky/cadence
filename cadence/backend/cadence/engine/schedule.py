@@ -72,9 +72,12 @@ def resolve_day(
     tz: ZoneInfo,
     sun: Sun | None,
 ) -> list[ResolvedChapter]:
-    if not template:
+    base = list(template.chapters) if template else []
+    extras = list(plan.extra_chapters) if plan else []
+    if not base and not extras:
         return []
-    pairs = apply_overrides(template.chapters, plan.chapter_overrides if plan else [])
+    extra_ids = {c.id for c in extras}
+    pairs = apply_overrides(base + extras, plan.chapter_overrides if plan else [])
     out: list[ResolvedChapter] = []
     for ch, forced in pairs:
         start, nominal = resolve_start(ch.start, day, tz, sun)
@@ -92,6 +95,7 @@ def resolve_day(
                 forced_variant=forced,
                 enabled=ch.enabled,
                 note=ch.note,
+                source="day" if ch.id in extra_ids else "template",
             )
         )
     out.sort(key=lambda r: r.nominal)

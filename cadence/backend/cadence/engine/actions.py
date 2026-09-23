@@ -79,7 +79,18 @@ class Executor:
         eid = m.entity_id
         tgt = {"entity_id": eid}
         if m.kind == "volume_fade":
-            self.start_fade(eid, m.from_volume, m.volume if m.volume is not None else 0.0, m.minutes or 0)
+            start = 0.0 if m.from_zero else m.from_volume
+            if m.from_zero:
+                await self.call("media_player", "volume_set", tgt, {"volume_level": 0.0})
+            self.start_fade(eid, start, m.volume if m.volume is not None else 0.0, m.minutes or 0)
+        elif m.kind == "spotify_context":
+            data: dict[str, Any] = {"entity_id": eid, "context_uri": m.media_content_id}
+            if m.device:
+                data["device_id"] = m.device
+            if m.shuffle is not None:
+                data["shuffle"] = m.shuffle
+            # SpotifyPlus services take entity_id as a data field rather than a target.
+            await self.call("spotifyplus", "player_media_play_context", None, data)
         elif m.kind == "volume_set":
             self.cancel_fade(eid)
             await self.call("media_player", "volume_set", tgt, {"volume_level": m.volume if m.volume is not None else 0.0})

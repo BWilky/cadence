@@ -71,3 +71,16 @@ def test_auto_windows_plan_override():
     assert auto_windows_for(DAY, s, DayPlan(date=DAY.isoformat(), auto="off"))[0] == "off"
     m, w = auto_windows_for(DAY, s, DayPlan(date=DAY.isoformat(), auto="windows", auto_windows=[TimeWindow(start="09:00", end="10:00")]))
     assert m == "windows" and w[0].start == "09:00"
+
+
+def test_day_only_chapters_are_resolved_and_tagged():
+    from cadence.models import ChapterOverride as CO
+
+    extra = Chapter(id="x", name="Extra", start=ChapterStart(kind="clock", time="15:00"))
+    plan = DayPlan(date=DAY.isoformat(), extra_chapters=[extra], chapter_overrides=[CO(chapter_id="x", variant_key=None, enabled=True)])
+    res = resolve_day(DAY, tmpl(), plan, Settings(), TZ, SUN)
+    x = next(r for r in res if r.chapter_id == "x")
+    assert x.source == "day" and x.start.endswith("15:00:00-07:00")
+    assert all(r.source == "template" for r in res if r.chapter_id != "x")
+    # a plan with only day chapters and no template still resolves
+    assert [r.chapter_id for r in resolve_day(DAY, None, plan, Settings(), TZ, SUN)] == ["x"]

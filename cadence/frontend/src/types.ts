@@ -18,6 +18,7 @@ export interface SceneLink {
 }
 
 export type MusicKind =
+  | "spotify_context"
   | "volume_fade"
   | "volume_set"
   | "mute"
@@ -34,7 +35,11 @@ export interface MusicAction {
   entity_id: string;
   volume?: number | null;
   from_volume?: number | null;
+  from_zero?: boolean;
   minutes?: number | null;
+  label?: string | null;
+  image?: string | null;
+  device?: string | null;
   source?: string | null;
   media_content_id?: string | null;
   media_content_type?: string | null;
@@ -121,6 +126,7 @@ export interface DayPlan {
   date: string;
   template_id?: string | null;
   chapter_overrides: ChapterOverride[];
+  extra_chapters: Chapter[];
   auto: "default" | "on" | "off" | "windows";
   auto_windows: TimeWindow[];
   occupied?: boolean | null;
@@ -155,6 +161,7 @@ export interface Settings {
   sky: SkyConfig;
   calendars: string[];
   calendar_keywords: string[];
+  spotify_entity?: string | null;
   zones: ZoneGlow[];
   site_name: string;
   dry_run: boolean;
@@ -177,6 +184,18 @@ export interface ResolvedChapter {
   forced_variant?: string | null;
   enabled: boolean;
   note: string;
+  source: "template" | "day";
+  music: (MusicAction & { scene?: string })[];
+}
+
+export interface SpotifyItem {
+  uri: string;
+  name: string;
+  type: "playlist" | "album" | "artist";
+  subtitle: string;
+  extra: string;
+  image: string | null;
+  image_large: string | null;
 }
 
 export interface CalendarEvent {

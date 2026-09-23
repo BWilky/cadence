@@ -214,6 +214,14 @@ export function SettingsPage({ live }: { live: ReturnType<typeof useLive> }) {
         <p className="text-xs opacity-60">"Asleep" is usually a template binary_sensor you define in Home Assistant (e.g. no motion anywhere for 30 minutes after 21:00). See DOCS for a ready-made example.</p>
       </Section>
 
+      <Section title="Music" intro="Spotify search and playback go through the SpotifyPlus integration. Pick its media_player; Cadence auto-detects it when left empty.">
+        <div className="grid gap-3 md:grid-cols-2">
+          <Field label="SpotifyPlus player">
+            <EntityPicker value={s.spotify_entity} onChange={(v) => setS({ ...s, spotify_entity: v })} domain="media_player" filter={(e) => e.entity_id.includes("spotify")} placeholder="media_player.spotifyplus_…" />
+          </Field>
+        </div>
+      </Section>
+
       <Section title="Calendar" intro="Add the Google Calendar integration in Home Assistant first; its calendar.* entities appear here.">
         <div className="grid gap-3 md:grid-cols-2">
           <Field label="Calendars">

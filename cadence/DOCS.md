@@ -80,6 +80,28 @@ a day to give it another template, move chapter starts, force a variant, set aut
 date, mark it occupied, and leave a note. Days with calendar events matching your keywords are
 marked occupied automatically.
 
+### Right-click in the Planner
+
+Right-click a day's track for a context menu. On empty space (the hour band above the chapters)
+it offers **Add chapter here (this day only)**. On a chapter it offers: edit for this day, force a
+variant, move the start to the clicked time, duplicate or add a new chapter at that time, apply now
+(today), skip for this day, or remove (day-only chapters). Day-only chapters live on that date's
+plan and are drawn with a double border and a ◆ marker.
+
+### Music
+
+Music actions belong to Cadence Scenes, so they follow the chapters. Each track shows a subtle
+strip along the bottom: a tinted band while something is playing (from a Spotify/play action to
+the next pause/stop), a line following the target zone volume (fades ramp it), and a dot at each
+chapter that changes the music.
+
+- **Play on Spotify** searches playlists, albums and artists through the SpotifyPlus integration
+  and plays the chosen context on a Spotify Connect device (or the active one), optionally
+  shuffled. Set the SpotifyPlus player under **Settings → Music** or let Cadence detect it.
+- **Fade volume** ramps a player to a percent over N minutes, starting from the current level or
+  from zero. **Set volume**, **Mute**, **Unmute** and **Select source** cover the Bose CSP zones;
+  the *Bose zones ▾* menu in the scene editor adds an action for every zone at once.
+
 ### Sky
 
 `dark` when the sun is below **Dark below sun °** *or* the lux reading is under **Dark below lux**.

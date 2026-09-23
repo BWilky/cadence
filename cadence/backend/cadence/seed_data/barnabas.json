@@ -97,7 +97,7 @@
           "minutes": 20
         },
         {
-          "kind": "play_playlist",
+          "kind": "spotify_context",
           "entity_id": "media_player.spotifyplus_the_station",
           "media_content_id": "spotify:playlist:REPLACE_ME_MORNING",
           "media_content_type": "playlist",
@@ -159,7 +159,7 @@
           "minutes": 20
         },
         {
-          "kind": "play_playlist",
+          "kind": "spotify_context",
           "entity_id": "media_player.spotifyplus_the_station",
           "media_content_id": "spotify:playlist:REPLACE_ME_MORNING",
           "media_content_type": "playlist",
@@ -500,7 +500,7 @@
           "minutes": 10
         },
         {
-          "kind": "play_playlist",
+          "kind": "spotify_context",
           "entity_id": "media_player.spotifyplus_the_station",
           "media_content_id": "spotify:playlist:REPLACE_ME_EVENING",
           "media_content_type": "playlist",
@@ -950,6 +950,7 @@
   ],
   "settings": {
     "site_name": "Barnabas Light Story",
+    "spotify_entity": "media_player.spotifyplus_the_station",
     "default_template_id": "standard_day",
     "auto_source": "either",
     "auto_schedule": {

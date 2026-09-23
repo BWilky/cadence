@@ -166,7 +166,7 @@ export function NumberInput(props: { value: number | null | undefined; onChange:
 
 export function Field(props: { label: string; help?: string; children: React.ReactNode; className?: string }) {
   return (
-    <fieldset className={"fieldset p-0 " + (props.className ?? "")}>
+    <fieldset className={"fieldset min-w-0 p-0 " + (props.className ?? "")}>
       <legend className="fieldset-legend pb-1 pt-0 text-xs opacity-70">{props.label}</legend>
       {props.children}
       {props.help ? <p className="label text-xs whitespace-normal">{props.help}</p> : null}
