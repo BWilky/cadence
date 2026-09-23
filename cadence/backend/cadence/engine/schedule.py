@@ -59,7 +59,7 @@ def resolve_start(start: ChapterStart, day: date, tz: ZoneInfo, sun: Sun | None)
             fb = start.latest or start.earliest or "12:00"
             t = at(day, fb, tz)
         return t, t
-    # motion / asleep: armed at `earliest`, guaranteed by `latest`
+    # motion / asleep / sensor: armed at `earliest`, guaranteed by the hard start `latest`
     nominal = at(day, start.earliest or start.latest or "00:00", tz)
     return None, nominal
 
@@ -96,10 +96,22 @@ def resolve_day(
                 enabled=ch.enabled,
                 note=ch.note,
                 source="day" if ch.id in extra_ids else "template",
+                hold=ch.hold.model_dump() if ch.hold else None,
+                start_entity=ch.start.entity_id if ch.start.kind == "sensor" else None,
             )
         )
     out.sort(key=lambda r: r.nominal)
     return out
+
+
+def hold_end(day: date, chapter_start: datetime, latest: str | None, tz: ZoneInfo) -> datetime | None:
+    """Hard end of a hold; a time earlier than the chapter's start means the next morning."""
+    if not latest:
+        return None
+    end = at(day, latest, tz)
+    if end <= chapter_start:
+        end += timedelta(days=1)
+    return end
 
 
 def window_active(windows: list[TimeWindow], now: datetime) -> bool:

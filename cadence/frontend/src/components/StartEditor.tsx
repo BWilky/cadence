@@ -1,9 +1,10 @@
 import type { ChapterStart, StartKind, TimeWindow } from "../types";
-import { NumberInput } from "./ui";
+import { EntityPicker, NumberInput } from "./ui";
 
 export function defaultStart(kind: StartKind): ChapterStart {
   if (kind === "clock") return { kind, time: "08:00", direction: "setting", offset_minutes: 0 };
   if (kind === "sun") return { kind, sun_event: "sunset", elevation: -5, direction: "setting", offset_minutes: 0, latest: "21:30" };
+  if (kind === "sensor") return { kind, entity_id: null, to_state: "on", direction: "setting", offset_minutes: 0, earliest: "06:00", latest: "06:45" };
   return { kind, direction: "setting", offset_minutes: 0, earliest: "21:00", latest: "01:00" };
 }
 
@@ -19,6 +20,7 @@ export function StartEditor({ value, onChange }: { value: ChapterStart; onChange
           <option value="sun">Relative to the sun</option>
           <option value="motion">When motion is seen</option>
           <option value="asleep">When the building falls asleep</option>
+          <option value="sensor">When a sensor changes</option>
         </select>
         {value.kind === "clock" ? <input type="time" className={TIME} value={value.time ?? ""} onChange={(e) => set({ time: e.target.value })} /> : null}
       </div>
@@ -47,12 +49,25 @@ export function StartEditor({ value, onChange }: { value: ChapterStart; onChange
           <input type="time" className={TIME} value={value.latest ?? ""} onChange={(e) => set({ latest: e.target.value || null })} title="If the sun never reaches that point today, start at this time" />
         </div>
       ) : null}
-      {value.kind === "motion" || value.kind === "asleep" ? (
+      {value.kind === "sensor" ? (
         <div className="flex flex-wrap items-center gap-2 text-xs opacity-80">
-          <span>no earlier than</span>
-          <input type="time" className={TIME} value={value.earliest ?? ""} onChange={(e) => set({ earliest: e.target.value || null })} />
-          <span>no later than</span>
-          <input type="time" className={TIME} value={value.latest ?? ""} onChange={(e) => set({ latest: e.target.value || null })} />
+          <div className="min-w-64 flex-1">
+            <EntityPicker value={value.entity_id} onChange={(v) => set({ entity_id: v })} filter={(e) => /^(binary_sensor|input_boolean|group|switch)\./.test(e.entity_id)} placeholder="Occupancy group, motion group, input_boolean…" />
+          </div>
+          <span>turns</span>
+          <select className="select select-sm w-auto" value={value.to_state ?? "on"} onChange={(e) => set({ to_state: e.target.value as "on" | "off" })}>
+            <option value="on">on</option>
+            <option value="off">off</option>
+          </select>
+        </div>
+      ) : null}
+      {value.kind === "motion" || value.kind === "asleep" || value.kind === "sensor" ? (
+        <div className="flex flex-wrap items-center gap-2 text-xs opacity-80">
+          <span>Hard start at</span>
+          <input type="time" className={TIME} value={value.latest ?? ""} onChange={(e) => set({ latest: e.target.value || null })} title="Starts at this time regardless" />
+          <span>— or earlier, from</span>
+          <input type="time" className={TIME} value={value.earliest ?? ""} onChange={(e) => set({ earliest: e.target.value || null })} title="The sensor can only start it after this time" />
+          <span>if the {value.kind === "sensor" ? "sensor" : value.kind === "motion" ? "motion" : "asleep sensor"} triggers.</span>
         </div>
       ) : null}
     </div>

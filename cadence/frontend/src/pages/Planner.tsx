@@ -228,7 +228,7 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
       <div className={"flex min-h-0 min-w-0 flex-col " + (selected ? "hidden lg:flex" : "")}>
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-base-300 bg-base-100 px-4 py-2">
           <div className="text-xs opacity-60">
-            Each row is a day. Scroll sideways through the hours; <span className="text-accent">■</span> auto windows, <span className="text-primary">■</span> calendar events. Click a day to plan it.
+            Each row is a day. Scroll sideways through the hours; <span className="text-accent">■</span> auto windows, <span className="text-primary">■</span> calendar events. Click a day to plan it, right-click for options, drag a chapter's left edge to move its start.
           </div>
           <div className="flex items-center gap-2">
             <button className="btn btn-xs btn-ghost" onClick={() => centerOn(12)} title="Centre on noon">
@@ -330,6 +330,8 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
                           setFocusChapter(c.chapter_id);
                         }}
                         onContext={(ctx) => openMenu(d, ctx)}
+                        carryOver={d.carry_over}
+                        onMoveStart={(c, minute) => mutatePlan(d, (p) => setOverride(p, c.chapter_id, { start: { ...defaultStart("clock"), time: hhmm(minute) } }), `${c.name} starts ${hhmm(minute)}`)}
                       />
                     </div>
                   </div>

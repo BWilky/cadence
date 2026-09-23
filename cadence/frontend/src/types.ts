@@ -1,7 +1,7 @@
 // Mirrors cadence/backend/cadence/models.py
 
 export type SkyState = "sunny" | "cloudy" | "dark";
-export type StartKind = "clock" | "sun" | "motion" | "asleep";
+export type StartKind = "clock" | "sun" | "motion" | "asleep" | "sensor";
 
 export interface HAAction {
   domain: string;
@@ -80,11 +80,19 @@ export interface Variant {
 export interface ChapterStart {
   kind: StartKind;
   time?: string | null;
+  entity_id?: string | null;
+  to_state?: "on" | "off";
   sun_event?: "elevation" | "sunrise" | "sunset" | "dawn" | "dusk" | null;
   elevation?: number | null;
   direction: "rising" | "setting";
   offset_minutes: number;
   earliest?: string | null;
+  latest?: string | null;
+}
+
+export interface ChapterHold {
+  entity_id: string;
+  while_state: "on" | "off";
   latest?: string | null;
 }
 
@@ -95,6 +103,7 @@ export interface Chapter {
   color?: string | null;
   enabled: boolean;
   start: ChapterStart;
+  hold?: ChapterHold | null;
   fade_minutes: number;
   variants: Variant[];
   motion_entity?: string | null;
@@ -186,6 +195,16 @@ export interface ResolvedChapter {
   note: string;
   source: "template" | "day";
   music: (MusicAction & { scene?: string })[];
+  hold?: ChapterHold | null;
+  held_by?: string | null;
+  start_entity?: string | null;
+}
+
+export interface CarryOver {
+  chapter_id: string;
+  name: string;
+  color?: string | null;
+  until: string | null;
 }
 
 export interface SpotifyItem {
@@ -219,6 +238,7 @@ export interface DayView {
   events: CalendarEvent[];
   sunrise: string | null;
   sunset: string | null;
+  carry_over?: CarryOver | null;
 }
 
 export interface ManualHold {
@@ -252,6 +272,8 @@ export interface EngineStatus {
   zones: Record<string, number>;
   fading: { led: string; want: string; until: string }[];
   timeline: ResolvedChapter[];
+  carry_over?: CarryOver | null;
+  chapter_hold?: { chapter: string; chapter_id: string; entity_id: string; while_state: string; until: string | null } | null;
   last_apply: { date: string; chapter_id: string; variant_key: string | null; at: string; scenes: string[] } | null;
 }
 

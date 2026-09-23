@@ -63,8 +63,20 @@ A chapter starts:
 - at a **clock time**,
 - relative to the **sun** (sunrise, sunset, civil dawn/dusk, or a sun elevation such as −5° while
   setting) with an offset and a fallback time,
-- when **motion** is seen, no earlier than a time and no later than another,
-- when the building **falls asleep** (your asleep `binary_sensor` turns on), with the same window.
+- when a **sensor** changes — any `binary_sensor`, group or `input_boolean` reaching on or off —
+  with a *hard start* time it will not wait past and an *earliest* time before which the sensor is
+  ignored ("06:45, or from 06:00 if the coffee bar shows motion"),
+- when **motion** is seen or the building **falls asleep**: presets of the sensor start that use the
+  global motion / asleep entities.
+
+A chapter can also **hold**: while a sensor is on (or off) the chapter stays active and the
+following chapters wait, until the sensor clears or a hard end time passes. A hard end earlier than
+the chapter's start means the next morning, so *Late Night Crowd, hold while the lounge occupancy
+group is on, hard end 01:30* runs past midnight and the next day's Nightlight waits for it. The
+planner draws the previous day's chapter continuing into the early hours ("← Late Night Crowd").
+
+Cadence only changes what a chapter explicitly says. If Coffee Bar starts a playlist and Breakfast's
+scenes carry no music actions, Breakfast changes the lights and leaves the music exactly as it is.
 
 Variants are checked top to bottom; the first whose conditions match wins. A variant with no
 conditions is the fallback. Conditions: sky ∈ {sunny, cloudy, dark}, light/dark, motion/quiet,
@@ -82,7 +94,8 @@ marked occupied automatically.
 
 ### Right-click in the Planner
 
-Right-click a day's track for a context menu. On empty space (the hour band above the chapters)
+Drag a chapter's left edge to move its start for that day (5-minute snapping); the chapter before it
+stretches or shrinks. Right-click a day's track for a context menu. On empty space (the hour band above the chapters)
 it offers **Add chapter here (this day only)**. On a chapter it offers: edit for this day, force a
 variant, move the start to the clicked time, duplicate or add a new chapter at that time, apply now
 (today), skip for this day, or remove (day-only chapters). Day-only chapters live on that date's

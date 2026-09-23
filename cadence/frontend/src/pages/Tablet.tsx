@@ -162,7 +162,7 @@ export function Tablet({ live, query }: { live: Live; query: URLSearchParams }) 
             <div className="next">
               {st?.next_chapter ? (
                 <>
-                  Next <b>{st.next_chapter.pending_condition ? `waiting for ${st.next_chapter.kind}` : fmtTime(st.next_chapter.at)}</b> {st.next_chapter.name}
+                  Next <b>{st.chapter_hold ? `when ${st.chapter_hold.entity_id.replace(/^binary_sensor\./, "")} clears${st.chapter_hold.until ? ` (by ${fmtTime(st.chapter_hold.until)})` : ""}` : st.next_chapter.pending_condition ? `waiting for ${st.next_chapter.kind}` : fmtTime(st.next_chapter.at)}</b> {st.next_chapter.name}
                 </>
               ) : null}
               {st?.hold.active ? <div className="tdanger">Changed by hand · resumes {st.hold.until ? fmtTime(st.hold.until) : "at the next chapter"}</div> : null}

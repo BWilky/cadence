@@ -123,22 +123,35 @@ class Variant(BaseModel):
     note: str = ""
 
 
-StartKind = Literal["clock", "sun", "motion", "asleep"]
+StartKind = Literal["clock", "sun", "motion", "asleep", "sensor"]
 
 
 class ChapterStart(BaseModel):
     kind: StartKind = "clock"
     time: str | None = None  # clock: HH:MM
+    # sensor: start when `entity_id` reaches `to_state` (motion / asleep are presets that use the global entities)
+    entity_id: str | None = None
+    to_state: Literal["on", "off"] = "on"
     # sun: either an elevation crossing or a sunrise/sunset event, plus an offset
     sun_event: Literal["elevation", "sunrise", "sunset", "dawn", "dusk"] | None = None
     elevation: float | None = None
     direction: Literal["rising", "setting"] = "setting"
     offset_minutes: int = 0
-    # motion / asleep: armed no earlier than `earliest`; if the condition never comes, start at `latest`
+    # motion / asleep / sensor: armed no earlier than `earliest`; if the condition never comes, the hard start is `latest`
     earliest: str | None = None
     latest: str | None = None
 
     _v_time = field_validator("time", "earliest", "latest")(classmethod(lambda cls, v: _check_hhmm(v)))
+
+
+class ChapterHold(BaseModel):
+    """Keep a chapter active — and the following chapters waiting — while a sensor is in a state."""
+
+    entity_id: str
+    while_state: Literal["on", "off"] = "on"
+    latest: str | None = None  # hard end (HH:MM); earlier than the chapter's start means the next morning
+
+    _v = field_validator("latest")(classmethod(lambda cls, v: _check_hhmm(v)))
 
 
 class Chapter(BaseModel):
@@ -148,6 +161,7 @@ class Chapter(BaseModel):
     color: str | None = None
     enabled: bool = True
     start: ChapterStart = Field(default_factory=ChapterStart)
+    hold: ChapterHold | None = None
     fade_minutes: float = 0  # how long the RA2 fade takes; informational for the tablet
     variants: list[Variant] = Field(default_factory=list)
     motion_entity: str | None = None  # override the global motion entity for this chapter
@@ -270,6 +284,18 @@ class ResolvedChapter(BaseModel):
     note: str = ""
     source: Literal["template", "day"] = "template"
     music: list[dict] = Field(default_factory=list)  # representative music actions, for the timeline strip
+    hold: dict | None = None  # {entity_id, while_state, latest} when the chapter can hold the following ones
+    held_by: str | None = None  # name of the chapter currently holding this one back (today only)
+    start_entity: str | None = None  # sensor kind: the entity being watched
+
+
+class CarryOver(BaseModel):
+    """The previous day's last chapter, still running into this day's early hours."""
+
+    chapter_id: str
+    name: str
+    color: str | None = None
+    until: str | None = None  # ISO datetime when this day's first chapter starts (None = still unknown)
 
 
 class DayView(BaseModel):
@@ -284,6 +310,7 @@ class DayView(BaseModel):
     events: list[dict] = Field(default_factory=list)
     sunrise: str | None = None
     sunset: str | None = None
+    carry_over: CarryOver | None = None
 
 
 class ManualHold(BaseModel):
@@ -317,4 +344,6 @@ class EngineStatus(BaseModel):
     zones: dict[str, float] = Field(default_factory=dict)  # zone id -> 0..100
     fading: list[dict] = Field(default_factory=list)
     timeline: list[ResolvedChapter] = Field(default_factory=list)
+    carry_over: CarryOver | None = None
+    chapter_hold: dict | None = None  # {chapter, entity_id, while_state, until} while a chapter hold is active
     last_apply: dict | None = None

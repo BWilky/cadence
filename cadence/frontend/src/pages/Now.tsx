@@ -66,6 +66,14 @@ export function Now({ live }: { live: Live }) {
               <span className="opacity-50">Last applied</span>
               <span className="font-mono text-xs">{st.last_apply ? `${fmtTime(st.last_apply.at)} · ${st.last_apply.chapter_id} / ${st.last_apply.variant_key ?? "-"}` : "never"}</span>
             </div>
+            {st.chapter_hold ? (
+              <div role="alert" className="alert alert-soft alert-accent py-2 text-xs">
+                <span>
+                  Holding <b>{st.chapter_hold.chapter}</b> while <span className="font-mono">{st.chapter_hold.entity_id}</span> is {st.chapter_hold.while_state}
+                  {st.chapter_hold.until ? ` · hard end ${fmtTime(st.chapter_hold.until)}` : ""}. The next chapter starts when it clears.
+                </span>
+              </div>
+            ) : null}
             {st.fading.length ? (
               <div role="alert" className="alert alert-soft alert-info py-2 text-xs">
                 <span className="loading loading-dots loading-xs" />
@@ -168,7 +176,7 @@ export function Now({ live }: { live: Live }) {
             <div className="eyebrow">Today · {st.date}</div>
             <div className="text-xs opacity-60">Click a chapter to jump to it.</div>
           </div>
-          <Track chapters={st.timeline} date={st.date} now={st.now} sunrise={st.sun.sunrise} sunset={st.sun.sunset} currentId={st.chapter?.id} variantOf={variantOf} onChapter={setPick} />
+          <Track chapters={st.timeline} date={st.date} now={st.now} sunrise={st.sun.sunrise} sunset={st.sun.sunset} currentId={st.chapter?.id} variantOf={variantOf} onChapter={setPick} carryOver={st.carry_over} />
           {pick ? (
             <div className="rounded-box border border-base-300 bg-base-200/60 p-4">
               <div className="flex items-start justify-between gap-3">

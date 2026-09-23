@@ -197,3 +197,153 @@ async def test_spotify_context_and_fade_from_zero(engine, fake_ha):
     await asyncio.sleep(0.05)
     vols = [d["volume_level"] for (dom, svc, tgt, d) in fake_ha.calls if svc == "volume_set" and tgt == {"entity_id": "media_player.bose"}]
     assert vols[:2] == [0.0, 0.3]
+
+
+def _hold_template(engine):
+    from cadence.engine.engine import KIND_TEMPLATE
+    from cadence.models import Chapter, ChapterHold, ChapterStart, Template, Variant
+
+    t = Template(
+        id="standard_day",
+        name="Hold day",
+        chapters=[
+            Chapter(
+                id="night",
+                name="Nightlight",
+                start=ChapterStart(kind="clock", time="00:00"),
+                variants=[Variant(key="q", label="Quiet", scene_ids=["nightlight_quiet"])],
+            ),
+            Chapter(
+                id="day",
+                name="Daytime",
+                start=ChapterStart(kind="clock", time="08:30"),
+                variants=[Variant(key="s", label="Sunny", scene_ids=["day_sunny"])],
+            ),
+            Chapter(
+                id="late",
+                name="Late Night Crowd",
+                start=ChapterStart(kind="clock", time="20:00"),
+                hold=ChapterHold(entity_id="binary_sensor.lounge", while_state="on", latest="01:30"),
+                variants=[Variant(key="on", label="On", scene_ids=["evening_dark"])],
+            ),
+            Chapter(
+                id="wind",
+                name="Wind down",
+                start=ChapterStart(kind="clock", time="22:00"),
+                variants=[Variant(key="c", label="Cloudy", scene_ids=["day_cloudy"])],
+            ),
+        ],
+    )
+    engine.store.put(KIND_TEMPLATE, "standard_day", t.model_dump())
+
+
+async def test_chapter_hold_defers_next_until_sensor_clears(engine, fake_ha):
+    _configure(engine, fake_ha)
+    _hold_template(engine)
+    fake_ha.set("binary_sensor.lounge", "on")
+    _freeze(engine, datetime(2026, 9, 22, 22, 30, tzinfo=TZ))
+    await engine.tick()
+    st = engine.last_status
+    assert st.chapter["name"] == "Late Night Crowd"
+    assert st.next_chapter["name"] == "Wind down" and st.next_chapter["pending_condition"]
+    held = next(r for r in st.timeline if r.chapter_id == "wind")
+    assert held.held_by == "Late Night Crowd" and held.start is None
+    assert st.chapter_hold and st.chapter_hold["entity_id"] == "binary_sensor.lounge"
+    assert st.chapter_hold["until"].startswith("2026-09-23T01:30")
+    # Lounge empties → Wind down starts right away, at the release time.
+    fake_ha.set("binary_sensor.lounge", "off")
+    _freeze(engine, datetime(2026, 9, 22, 22, 40, tzinfo=TZ))
+    await engine.tick()
+    st = engine.last_status
+    assert st.chapter["name"] == "Wind down"
+    assert st.chapter["start"].startswith("2026-09-22T22:40")
+    assert st.chapter_hold is None
+    assert ("scene", "turn_on", {"entity_id": "scene.day_cloudy"}, None) in fake_ha.calls
+
+
+async def test_chapter_hold_carries_past_midnight_then_hard_end(engine, fake_ha):
+    _configure(engine, fake_ha)
+    _hold_template(engine)
+    fake_ha.set("binary_sensor.lounge", "on")
+    fake_ha.set("sun.sun", "below_horizon", elevation=-30.0)
+    # 00:30 the next morning: yesterday's Late Night Crowd still holds; today's Nightlight waits.
+    _freeze(engine, datetime(2026, 9, 23, 0, 30, tzinfo=TZ))
+    await engine.tick()
+    st = engine.last_status
+    assert st.chapter["name"] == "Late Night Crowd"
+    night = next(r for r in st.timeline if r.chapter_id == "night")
+    assert night.held_by == "Late Night Crowd"
+    assert st.carry_over and st.carry_over.name == "Late Night Crowd"
+    # 01:35: hard end passed even though the lounge is still occupied → Nightlight starts at 01:30.
+    _freeze(engine, datetime(2026, 9, 23, 1, 35, tzinfo=TZ))
+    await engine.tick()
+    st = engine.last_status
+    assert st.chapter["name"] == "Nightlight"
+    assert st.chapter["start"].startswith("2026-09-23T01:30")
+
+
+async def test_sensor_start_kind(engine, fake_ha):
+    from cadence.engine.engine import KIND_TEMPLATE
+    from cadence.models import Chapter, ChapterStart, Template, Variant
+
+    _configure(engine, fake_ha)
+    t = Template(
+        id="standard_day",
+        name="Sensor day",
+        chapters=[
+            Chapter(
+                id="night",
+                name="Nightlight",
+                start=ChapterStart(kind="clock", time="00:00"),
+                variants=[Variant(key="q", label="Quiet", scene_ids=["nightlight_quiet"])],
+            ),
+            Chapter(
+                id="coffee",
+                name="Coffee Bar",
+                start=ChapterStart(kind="sensor", entity_id="binary_sensor.occ", to_state="on", earliest="06:00", latest="06:45"),
+                variants=[Variant(key="l", label="Light", scene_ids=["day_sunny"])],
+            ),
+        ],
+    )
+    engine.store.put(KIND_TEMPLATE, "standard_day", t.model_dump())
+    fake_ha.set("binary_sensor.occ", "off", _age_s=3600)
+    _freeze(engine, datetime(2026, 9, 22, 6, 10, tzinfo=TZ))
+    await engine.tick()
+    assert engine.last_status.chapter["name"] == "Nightlight"
+    assert engine.last_status.next_chapter["name"] == "Coffee Bar" and engine.last_status.next_chapter["pending_condition"]
+    fake_ha.set("binary_sensor.occ", "on")
+    _freeze(engine, datetime(2026, 9, 22, 6, 20, tzinfo=TZ))
+    await engine.tick()
+    assert engine.last_status.chapter["name"] == "Coffee Bar"
+    assert engine.last_status.chapter["start"].startswith("2026-09-22T06:20")
+
+
+async def test_sensor_start_hard_time_without_trigger(engine, fake_ha):
+    from cadence.engine.engine import KIND_TEMPLATE
+    from cadence.models import Chapter, ChapterStart, Template, Variant
+
+    _configure(engine, fake_ha)
+    t = Template(
+        id="standard_day",
+        name="Sensor day",
+        chapters=[
+            Chapter(
+                id="night",
+                name="Nightlight",
+                start=ChapterStart(kind="clock", time="00:00"),
+                variants=[Variant(key="q", label="Quiet", scene_ids=["nightlight_quiet"])],
+            ),
+            Chapter(
+                id="coffee",
+                name="Coffee Bar",
+                start=ChapterStart(kind="sensor", entity_id="binary_sensor.occ", earliest="06:00", latest="06:45"),
+                variants=[Variant(key="l", label="Light", scene_ids=["day_sunny"])],
+            ),
+        ],
+    )
+    engine.store.put(KIND_TEMPLATE, "standard_day", t.model_dump())
+    fake_ha.set("binary_sensor.occ", "off", _age_s=3600)
+    _freeze(engine, datetime(2026, 9, 22, 6, 50, tzinfo=TZ))
+    await engine.tick()
+    assert engine.last_status.chapter["name"] == "Coffee Bar"
+    assert engine.last_status.chapter["start"].startswith("2026-09-22T06:45")

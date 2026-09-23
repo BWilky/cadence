@@ -1,5 +1,6 @@
+import { useEffect, useRef, useState } from "react";
 import { hhmm, minutesOfDay } from "../api";
-import type { CalendarEvent, MusicAction, ResolvedChapter, TimeWindow } from "../types";
+import type { CalendarEvent, CarryOver, MusicAction, ResolvedChapter, TimeWindow } from "../types";
 import { chapterColor } from "./ui";
 
 export interface TrackContext {
@@ -74,13 +75,42 @@ export function Track(props: {
   variantOf?: (c: ResolvedChapter) => string | null | undefined;
   onChapter?: (c: ResolvedChapter) => void;
   onContext?: (ctx: TrackContext) => void;
+  onMoveStart?: (c: ResolvedChapter, minute: number) => void; // drag the left edge
+  carryOver?: CarryOver | null;
   hours?: boolean;
   hourLabels?: boolean;
   music?: boolean;
   className?: string;
 }) {
   const pct = (m: number) => (Math.max(0, Math.min(1440, m)) / 1440) * 100;
-  const starts = props.chapters.map((c) => (c.start ? minutesOfDay(c.start) : minutesOfDay(c.nominal)));
+  const hostRef = useRef<HTMLDivElement>(null);
+  const [drag, setDrag] = useState<{ id: string; minute: number } | null>(null);
+  const baseStarts = props.chapters.map((c) => (c.start ? minutesOfDay(c.start) : minutesOfDay(c.nominal)));
+  const starts = baseStarts.map((m, i) => (drag && props.chapters[i].chapter_id === drag.id ? drag.minute : m));
+
+  // Drag the left edge of a block to move its start (5-minute snapping).
+  useEffect(() => {
+    if (!drag) return;
+    const move = (e: PointerEvent) => {
+      const rect = hostRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const m = Math.round((((e.clientX - rect.left) / rect.width) * 1440) / 5) * 5;
+      setDrag((d) => (d ? { ...d, minute: Math.max(0, Math.min(1435, m)) } : d));
+    };
+    const up = () => {
+      const c = props.chapters.find((x) => x.chapter_id === drag.id);
+      const orig = c ? baseStarts[props.chapters.indexOf(c)] : null;
+      if (c && orig !== null && drag.minute !== orig) props.onMoveStart?.(c, drag.minute);
+      setDrag(null);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up, { once: true });
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drag?.id, drag?.minute]);
   const isToday = props.now ? props.now.slice(0, 10) === props.date : false;
   const nowMin = isToday && props.now ? minutesOfDay(props.now) : null;
   const sr = props.sunrise ? minutesOfDay(props.sunrise) : null;
@@ -99,7 +129,7 @@ export function Track(props: {
   };
 
   return (
-    <div className={"track " + (props.className ?? "") + (showMusic ? " has-music" : "")} onContextMenu={(e) => ctxFromEvent(e, null)}>
+    <div ref={hostRef} className={"track " + (props.className ?? "") + (showMusic ? " has-music" : "") + (drag ? " dragging" : "")} onContextMenu={(e) => ctxFromEvent(e, null)}>
       {sr != null && ss != null ? (
         <>
           <div className="night" style={{ left: 0, width: pct(sr) + "%" }} />
@@ -135,6 +165,21 @@ export function Track(props: {
         const e = ev.end && ev.end.slice(0, 10) === props.date ? minutesOfDay(ev.end) : 1440;
         return <div key={i} className="event" style={{ left: pct(s) + "%", width: Math.max(0.4, pct(e - s)) + "%" }} title={ev.summary ?? ""} />;
       })}
+      {(() => {
+        // Yesterday's last chapter runs on until this day's first chapter starts.
+        const co = props.carryOver;
+        if (!co) return null;
+        const startedMins = props.chapters.map((c, i) => (c.enabled && c.start ? starts[i] : null)).filter((m): m is number => m !== null);
+        const firstStart = startedMins.length ? Math.min(...startedMins) : 1440;
+        const end = co.until ? minutesOfDay(co.until) : firstStart;
+        if (end <= 0) return null;
+        const col = chapterColor(co.color);
+        return (
+          <div className={"block ghost " + (co.chapter_id === props.currentId ? "current" : "")} style={{ left: 0, width: pct(end) + "%", ["--c-fill" as string]: col.fill, ["--c-line" as string]: col.line }} title={`${co.name} — carried over from the previous day`}>
+            ← {co.name}
+          </div>
+        );
+      })()}
       {props.chapters.map((c, i) => {
         if (!c.enabled) return null;
         const s = starts[i];
@@ -148,21 +193,38 @@ export function Track(props: {
         const col = chapterColor(c.color);
         const v = props.variantOf?.(c);
         const past = nowMin != null && e < nowMin;
-        const cls = ["block", c.chapter_id === props.currentId ? "current" : "", c.pending_condition ? "cond" : "", past ? "dim" : "", c.source === "day" ? "dayonly" : ""].join(" ");
+        const held = !!c.held_by;
+        const cls = ["block", c.chapter_id === props.currentId ? "current" : "", c.pending_condition ? "cond" : "", held ? "held" : "", past ? "dim" : "", c.source === "day" ? "dayonly" : "", c.hold ? "holder" : ""].join(" ");
         const fadeW = c.fade_minutes > 0 ? Math.min(100, (c.fade_minutes / Math.max(1, e - s)) * 100) : 0;
+        const startText = held ? `waiting — held by ${c.held_by}` : c.start ? hhmm(s) : c.start_entity ? `waiting for ${c.start_entity} (hard start ${hhmm(s)})` : "waiting (" + hhmm(s) + ")";
+        const holdText = c.hold ? `\nHolds while ${c.hold.entity_id} is ${c.hold.while_state}${c.hold.latest ? ` (until ${c.hold.latest})` : ""}` : "";
         return (
           <div
             key={c.chapter_id + i}
             className={cls}
             style={{ left: pct(s) + "%", width: Math.max(0.6, pct(e - s)) + "%", ["--c-fill" as string]: col.fill, ["--c-line" as string]: col.line }}
-            title={`${c.name} — ${c.start ? hhmm(s) : "waiting (" + hhmm(s) + ")"}${c.source === "day" ? "\n(this day only)" : ""}${c.note ? "\n" + c.note : ""}`}
+            title={`${c.name} — ${startText}${holdText}${c.source === "day" ? "\n(this day only)" : ""}${c.note ? "\n" + c.note : ""}`}
             onClick={() => props.onChapter?.(c)}
             onContextMenu={(e) => ctxFromEvent(e, c)}
           >
+            {props.onMoveStart && c.kind === "clock" ? (
+              <div
+                className="grip"
+                title="Drag to change the start time"
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setDrag({ id: c.chapter_id, minute: s });
+                }}
+                onClick={(e) => e.stopPropagation()}
+              />
+            ) : null}
             {fadeW > 0 ? <div className="fade" style={{ width: fadeW + "%" }} /> : null}
+            {c.hold ? <div className="holdmark" /> : null}
             {c.source === "day" ? <span className="mr-1 opacity-70">◆</span> : null}
+            {held ? <span className="mr-1 opacity-70">⏸</span> : null}
             {c.name}
-            {v ? <span className="v">{v}</span> : null}
+            {drag?.id === c.chapter_id ? <span className="v">{hhmm(drag.minute)}</span> : v ? <span className="v">{v}</span> : null}
           </div>
         );
       })}

@@ -16,6 +16,7 @@ from ..config import Options
 from ..ha.client import HAClient
 from ..models import (
     CadenceScene,
+    CarryOver,
     Chapter,
     DayPlan,
     DayView,
@@ -33,6 +34,7 @@ from .schedule import (
     add_days,
     at,
     auto_windows_for,
+    hold_end,
     latest_before,
     next_after,
     resolve_day,
@@ -73,6 +75,8 @@ class Engine:
         self.auto_override: str = rt.get("auto_override", "none")
         self.auto_override_date: str | None = rt.get("auto_override_date")
         self.triggered: dict[str, str] = rt.get("triggered", {})  # "date|chapter_id" -> ISO start
+        self.released: dict[str, str] = rt.get("released", {})  # "date|chapter_id" -> ISO time a chapter hold let go
+        self.active_hold: dict | None = None
         self.motion_last_on: dict[str, float] = {}
         self.expected_leds: dict[str, tuple[str, float]] = {}  # led -> (state, grace_until_ts)
         self.active_leds: set[str] = set()
@@ -107,6 +111,7 @@ class Engine:
                 "auto_override": self.auto_override,
                 "auto_override_date": self.auto_override_date,
                 "triggered": self.triggered,
+                "released": self.released,
             },
         )
 
@@ -161,9 +166,13 @@ class Engine:
     async def _on_state(self, entity_id: str, old: dict | None, new: dict | None) -> None:
         s = self.settings()
         watched = {s.sky.lux_entity, s.motion_entity, s.asleep_entity, s.auto_entity, s.occupied_entity, "sun.sun"}
-        for ch in self._current_template_chapters():
+        for ch in self._current_template_chapters() + self._chapters_for(add_days(self.now().date(), -1)):
             if ch.motion_entity:
                 watched.add(ch.motion_entity)
+            if ch.start.kind == "sensor" and ch.start.entity_id:
+                watched.add(ch.start.entity_id)
+            if ch.hold:
+                watched.add(ch.hold.entity_id)
         if entity_id in self.expected_leds or entity_id in self._all_led_entities():
             self._check_led(entity_id, old, new)
             self.wake()
@@ -501,6 +510,9 @@ class Engine:
             elif ch.start.kind == "motion":
                 m, _ = self._motion(s, ch)
                 cond = bool(m)
+            elif ch.start.kind == "sensor":
+                st = self.ha.state(ch.start.entity_id) if ch.start.entity_id else None
+                cond = st is not None and st == ch.start.to_state
             start_at: datetime | None = None
             if cond:
                 start_at = now
@@ -512,13 +524,124 @@ class Engine:
                 r.start = start_at.isoformat()
                 r.pending_condition = False
                 fired = True
-                self._log("info", "chapter", f"'{r.name}' triggered by {ch.start.kind}" + ("" if cond else " (latest time reached)"))
+                what = ch.start.kind if ch.start.kind != "sensor" else f"{ch.start.entity_id} → {ch.start.to_state}"
+                self._log("info", "chapter", f"'{r.name}' triggered by {what}" + ("" if cond else " (hard start reached)"))
         if fired:
-            # prune old keys
-            keep = {day.isoformat(), add_days(day, -1).isoformat()}
-            self.triggered = {k: v for k, v in self.triggered.items() if k.split("|")[0] in keep}
+            self._prune_runtime(day)
             self._persist_runtime()
         return fired
+
+    def _prune_runtime(self, day: date) -> None:
+        keep = {day.isoformat(), add_days(day, -1).isoformat()}
+        self.triggered = {k: v for k, v in self.triggered.items() if k.split("|")[0] in keep}
+        self.released = {k: v for k, v in self.released.items() if k.split("|")[0] in keep}
+
+    # ------------------------------------------------------------------ chapter holds
+    def _hold_release(
+        self, day: date, r: ResolvedChapter, ch: Chapter, now: datetime, next_start: datetime | None
+    ) -> tuple[bool, datetime | None, datetime | None]:
+        """Evaluate a chapter's hold. Returns (active_now, release_time, hard_end)."""
+        if not ch.hold or not r.start:
+            return False, None, None
+        start = datetime.fromisoformat(r.start)
+        end = hold_end(day, start, ch.hold.latest, self.tz)
+        key = f"{day.isoformat()}|{ch.id}"
+        rel = self.released.get(key)
+        if rel:
+            return False, datetime.fromisoformat(rel), end
+        if next_start is None or now < next_start:
+            # The following chapter isn't due yet — the hold has nothing to hold back.
+            return False, None, end
+        st = self.ha.state(ch.hold.entity_id)
+        cond = st is not None and st == ch.hold.while_state
+        if cond and (end is None or now < end):
+            return True, None, end
+        # Released: either the sensor cleared or the hard end passed. Remember when.
+        release = now if (end is None or now < end) else end
+        release = max(release, next_start)
+        self.released[key] = release.isoformat()
+        self._persist_runtime()
+        self._log(
+            "info",
+            "chapter",
+            f"'{ch.name}' hold released" + ("" if cond else f" ({ch.hold.entity_id} {st})")
+            if (end is None or now < end)
+            else f"'{ch.name}' hold reached its hard end",
+        )
+        return False, release, end
+
+    def _apply_holds(
+        self,
+        day: date,
+        chapters: list[ResolvedChapter],
+        by_id: dict[str, Chapter],
+        now: datetime,
+        carried: tuple[ResolvedChapter, Chapter, date] | None,
+    ) -> dict | None:
+        """Defer chapters that are held back by an earlier chapter's hold. Returns the active hold, if any."""
+        active: dict | None = None
+        release: datetime | None = None
+        holder_name = ""
+        started = [r for r in chapters if r.enabled and r.start]
+
+        def first_due(after: datetime) -> datetime | None:
+            for r in chapters:
+                if r.enabled and r.start and datetime.fromisoformat(r.start) > after:
+                    return datetime.fromisoformat(r.start)
+            return None
+
+        # Yesterday's last chapter may still be holding into this morning.
+        if carried:
+            cr, cch, cday = carried
+            if cch.hold and cr.start:
+                nxt = min((datetime.fromisoformat(r.start) for r in started), default=None)
+                act, rel, end = self._hold_release(cday, cr, cch, now, nxt)
+                if act:
+                    active = {
+                        "chapter": cch.name,
+                        "chapter_id": cch.id,
+                        "entity_id": cch.hold.entity_id,
+                        "while_state": cch.hold.while_state,
+                        "until": end.isoformat() if end else None,
+                    }
+                    holder_name = cch.name
+                release = rel
+
+        for r in chapters:
+            if not r.enabled or not r.start:
+                continue
+            start = datetime.fromisoformat(r.start)
+            if active and start <= now:
+                r.start = None
+                r.pending_condition = True
+                r.held_by = holder_name
+                continue
+            if release and start < release:
+                if release.date() != day:
+                    # Released only after this day ended: the next day's chapters take over instead.
+                    r.start = None
+                    r.pending_condition = True
+                    r.held_by = holder_name or "hold"
+                    continue
+                r.start = release.isoformat()
+                start = release
+            ch = by_id.get(r.chapter_id)
+            if ch and ch.hold and start <= now:
+                act, rel, end = self._hold_release(day, r, ch, now, first_due(start))
+                if act:
+                    active = {
+                        "chapter": ch.name,
+                        "chapter_id": ch.id,
+                        "entity_id": ch.hold.entity_id,
+                        "while_state": ch.hold.while_state,
+                        "until": end.isoformat() if end else None,
+                    }
+                    holder_name = ch.name
+                    release = None
+                else:
+                    active = None
+                    release = rel
+        return active
 
     def _auto_state(self, day: date, s: Settings, plan: DayPlan | None, now: datetime) -> tuple[bool, str]:
         if self.auto_override != "none" and self.auto_override_date == day.isoformat():
@@ -564,16 +687,29 @@ class Engine:
         # Conditional chapters may start right now
         self._arm_conditional(day, chapters, tmpl, s, now, asleep)
 
+        # Yesterday's last chapter (it may still be running, or holding this morning back)
+        yday = add_days(day, -1)
+        _, _, ych = self._resolve(yday, s)
+        self._apply_holds(yday, ych, {c.id: c for c in self._chapters_for(yday)}, now, None)
+        ystarted = [r for r in ych if r.enabled and r.start]
+        ylast = ystarted[-1] if ystarted else None
+        ych_obj = next((c for c in self._chapters_for(yday) if ylast and c.id == ylast.chapter_id), None)
+        by_id = {c.id: c for c in self._chapters_for(day)}
+        self.active_hold = self._apply_holds(day, chapters, by_id, now, (ylast, ych_obj, yday) if ylast and ych_obj else None)
+
         # Current chapter: latest started today, else carry over yesterday's last
         current = latest_before(chapters, now)
         carried = False
-        if current is None:
-            yday = add_days(day, -1)
-            _, _, ych = self._resolve(yday, s)
-            started = [r for r in ych if r.enabled and r.start]
-            if started:
-                current = started[-1]
-                carried = True
+        if current is None and ylast is not None:
+            current = ylast
+            carried = True
+        carry_over = None
+        if ylast is not None:
+            first_today = min((datetime.fromisoformat(r.start) for r in chapters if r.enabled and r.start), default=None)
+            if first_today is None or first_today > at(day, "00:00", self.tz):
+                carry_over = CarryOver(
+                    chapter_id=ylast.chapter_id, name=ylast.name, color=ylast.color, until=first_today.isoformat() if first_today else None
+                )
         nxt = next_after(chapters, now)
         if nxt is None:
             _, _, tch = self._resolve(add_days(day, 1), s)
@@ -615,6 +751,8 @@ class Engine:
         self.last_status = self._build_status(
             now, s, day, tmpl, current, chapter_obj, variant, nxt, chapters, motion, motion_entity, asleep, occupied, auto_active, auto_reason
         )
+        self.last_status.carry_over = carry_over
+        self.last_status.chapter_hold = self.active_hold
         self.emit({"type": "status", "status": self.last_status.model_dump()})
 
     async def apply(
@@ -683,8 +821,12 @@ class Engine:
             ctx = {"sky": self.sky.state, "motion": None, "asleep": None, "occupied": None}
             variant = self.choose_variant(ch, variant_key or target_res.forced_variant, ctx)
             if chapter_id and target_res.pending_condition:
-                # Manually starting a conditional chapter counts as its trigger.
-                self.triggered[f"{day.isoformat()}|{ch.id}"] = self.now().isoformat()
+                # Manually starting a waiting chapter counts as its trigger and releases any hold on it.
+                if target_res.held_by and self.active_hold:
+                    hday = day if self.active_hold["chapter_id"] in {c.id for c in tmpl.chapters} else add_days(day, -1)
+                    self.released[f"{hday.isoformat()}|{self.active_hold['chapter_id']}"] = self.now().isoformat()
+                else:
+                    self.triggered[f"{day.isoformat()}|{ch.id}"] = self.now().isoformat()
                 target_res.start = self.now().isoformat()
             await self.apply(ch, variant, target_res, entering_chapter=True, ctx=ctx, manual=True)
             self.wake()
@@ -865,11 +1007,22 @@ class Engine:
         events = await self.fetch_events(start, end)
         out: list[DayView] = []
         d = start
+        today = self.now().date()
         while d <= end:
             tmpl, plan, chapters = self._resolve(d, s, with_music=True)
+            if d == today and self.last_status is not None:
+                chapters = list(self.last_status.timeline)  # today reflects live holds/triggers
             mode, wins = auto_windows_for(d, s, plan)
             sr = self.sun.event(d, "sunrise") if self.sun else None
             ss = self.sun.event(d, "sunset") if self.sun else None
+            carry = None
+            _, _, ych = self._resolve(add_days(d, -1), s)
+            ystarted = [r for r in ych if r.enabled and (r.start or r.nominal)]
+            if ystarted:
+                yl = ystarted[-1]
+                first = min((datetime.fromisoformat(r.start or r.nominal) for r in chapters if r.enabled), default=None)
+                if first is None or first > at(d, "00:00", self.tz):
+                    carry = CarryOver(chapter_id=yl.chapter_id, name=yl.name, color=yl.color, until=first.isoformat() if first else None)
             out.append(
                 DayView(
                     date=d.isoformat(),
@@ -883,6 +1036,7 @@ class Engine:
                     events=events.get(d.isoformat(), []),
                     sunrise=sr.isoformat() if sr else None,
                     sunset=ss.isoformat() if ss else None,
+                    carry_over=carry,
                 )
             )
             d = add_days(d, 1)

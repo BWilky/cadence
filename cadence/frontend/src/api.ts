@@ -172,14 +172,16 @@ export function slug(s: string): string {
     .slice(0, 40) || "item";
 }
 
-export function describeStart(s: { kind: StartKindLike; time?: string | null; sun_event?: string | null; elevation?: number | null; direction?: string; offset_minutes?: number; earliest?: string | null; latest?: string | null }): string {
+export function describeStart(s: { kind: StartKindLike; time?: string | null; sun_event?: string | null; elevation?: number | null; direction?: string; offset_minutes?: number; earliest?: string | null; latest?: string | null; entity_id?: string | null; to_state?: string }): string {
   if (s.kind === "clock") return s.time ?? "--:--";
   if (s.kind === "sun") {
     const off = s.offset_minutes ? ` ${s.offset_minutes > 0 ? "+" : ""}${s.offset_minutes} min` : "";
     if (s.sun_event === "elevation" || (!s.sun_event && s.elevation != null)) return `sun ${s.elevation ?? 0}° ${s.direction ?? "setting"}${off}`;
     return `${s.sun_event ?? "sunset"}${off}`;
   }
-  const win = [s.earliest ? `from ${s.earliest}` : null, s.latest ? `by ${s.latest}` : null].filter(Boolean).join(", ");
-  return `${s.kind === "asleep" ? "when asleep" : "on motion"}${win ? ` (${win})` : ""}`;
+  const hard = s.latest ? `${s.latest}` : "";
+  const early = s.earliest ? ` or from ${s.earliest}` : "";
+  const what = s.kind === "asleep" ? "when asleep" : s.kind === "motion" ? "on motion" : `when ${(s.entity_id ?? "sensor").replace(/^binary_sensor\./, "")} ${s.to_state ?? "on"}`;
+  return hard ? `${hard}${early} ${what}` : `${what}${s.earliest ? ` (from ${s.earliest})` : ""}`;
 }
-type StartKindLike = "clock" | "sun" | "motion" | "asleep";
+type StartKindLike = "clock" | "sun" | "motion" | "asleep" | "sensor";

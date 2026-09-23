@@ -16,8 +16,8 @@ export function ChapterEditor({ chapter: c, scenes, onChange }: { chapter: Chapt
   const sel = (v: string | boolean | null | undefined) => (v == null ? "" : String(v));
   return (
     <div className="flex flex-col gap-4 pt-2">
-      <div className="grid gap-3 md:grid-cols-[2fr_auto_auto]">
-        <Field label="Name">
+      <div className="flex flex-wrap items-end gap-3">
+        <Field label="Name" className="min-w-48 flex-1">
           <input type="text" className="input input-sm w-full" value={c.name} onChange={(e) => onChange({ name: e.target.value })} />
         </Field>
         <Field label="Colour">
@@ -29,6 +29,30 @@ export function ChapterEditor({ chapter: c, scenes, onChange }: { chapter: Chapt
       </div>
       <Field label="Starts">
         <StartEditor value={c.start} onChange={(s) => onChange({ start: s })} />
+      </Field>
+      <Field label="Hold" help="While the sensor is in this state the chapter stays active and the following chapters wait. The hard end is a time of day; one earlier than the chapter's start means the next morning.">
+        <div className="flex flex-col gap-2">
+          <Toggle
+            checked={!!c.hold}
+            onChange={(v) => onChange({ hold: v ? { entity_id: "", while_state: "on", latest: "01:00" } : null })}
+            label="Keep this chapter going while a sensor says so"
+            color="toggle-accent"
+          />
+          {c.hold ? (
+            <div className="flex flex-wrap items-center gap-2 text-xs opacity-80">
+              <div className="min-w-64 flex-1">
+                <EntityPicker value={c.hold.entity_id} allowClear={false} onChange={(v) => v && onChange({ hold: { ...c.hold!, entity_id: v } })} filter={(e) => /^(binary_sensor|input_boolean|group|switch)\./.test(e.entity_id)} placeholder="Occupancy group, input_boolean…" />
+              </div>
+              <span>is</span>
+              <select className="select select-sm w-auto" value={c.hold.while_state} onChange={(e) => onChange({ hold: { ...c.hold!, while_state: e.target.value as "on" | "off" } })}>
+                <option value="on">on</option>
+                <option value="off">off</option>
+              </select>
+              <span>· hard end at</span>
+              <input type="time" className="input input-sm w-[7.5rem]" value={c.hold.latest ?? ""} onChange={(e) => onChange({ hold: { ...c.hold!, latest: e.target.value || null } })} />
+            </div>
+          ) : null}
+        </div>
       </Field>
       <Field label="Note (shown on the tablet)">
         <textarea className="textarea textarea-sm w-full" value={c.note} onChange={(e) => onChange({ note: e.target.value })} />
