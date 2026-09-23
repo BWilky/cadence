@@ -172,7 +172,10 @@ export function slug(s: string): string {
     .slice(0, 40) || "item";
 }
 
-export function describeStart(s: { kind: StartKindLike; time?: string | null; sun_event?: string | null; elevation?: number | null; direction?: string; offset_minutes?: number; earliest?: string | null; latest?: string | null; entity_id?: string | null; to_state?: string }): string {
+export function describeStart(
+  s: { kind: StartKindLike; time?: string | null; sun_event?: string | null; elevation?: number | null; direction?: string; offset_minutes?: number; earliest?: string | null; latest?: string | null; entity_id?: string | null; to_state?: string },
+  groups?: { id: string; name: string }[],
+): string {
   if (s.kind === "clock") return s.time ?? "--:--";
   if (s.kind === "sun") {
     const off = s.offset_minutes ? ` ${s.offset_minutes > 0 ? "+" : ""}${s.offset_minutes} min` : "";
@@ -181,7 +184,10 @@ export function describeStart(s: { kind: StartKindLike; time?: string | null; su
   }
   const hard = s.latest ? `${s.latest}` : "";
   const early = s.earliest ? ` or from ${s.earliest}` : "";
-  const what = s.kind === "asleep" ? "when asleep" : s.kind === "motion" ? "on motion" : `when ${(s.entity_id ?? "sensor").replace(/^binary_sensor\./, "")} ${s.to_state ?? "on"}`;
+  const ref = s.entity_id ?? "sensor";
+  const g = ref.startsWith("group:") ? groups?.find((x) => x.id === ref.slice(6)) : undefined;
+  const who = g ? g.name : ref.replace(/^binary_sensor\./, "");
+  const what = s.kind === "asleep" ? "when asleep" : s.kind === "motion" ? "on motion" : `when ${who} ${s.to_state ?? "on"}`;
   return hard ? `${hard}${early} ${what}` : `${what}${s.earliest ? ` (from ${s.earliest})` : ""}`;
 }
 type StartKindLike = "clock" | "sun" | "motion" | "asleep" | "sensor";

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { addDays, api, describeStart, fmtTime, hhmm, todayISO, type useLive } from "../api";
 import { ChapterEditor } from "../components/ChapterEditor";
 import { ContextMenu, type MenuItem, type MenuState } from "../components/ContextMenu";
+import { useSensorGroups } from "../components/SensorRef";
 import { StartEditor, WindowsEditor, defaultStart } from "../components/StartEditor";
 import { Track, type TrackContext } from "../components/Track";
 import { COLORS, Confirm, Field, Pill, toast } from "../components/ui";
@@ -425,6 +426,7 @@ function DayEditor(props: {
   onSaved: () => void;
 }) {
   const { view } = props;
+  const groups = useSensorGroups();
   const [plan, setPlan] = useState<DayPlan>(view.plan ?? emptyPlan(view.date));
   const [openExtra, setOpenExtra] = useState<string | null>(null);
   useEffect(() => {
@@ -561,7 +563,7 @@ function DayEditor(props: {
               <div className="flex items-center gap-2">
                 <span className="swatch" style={{ background: c.color ?? "#556" }} />
                 <b className={"display text-base " + (enabled ? "" : "opacity-50")}>{c.name}</b>
-                <span className="font-mono text-xs opacity-60">{res?.start ? fmtTime(res.start) : describeStart(ov?.start ?? c.start)}</span>
+                <span className="font-mono text-xs opacity-60">{res?.start ? fmtTime(res.start) : describeStart(ov?.start ?? c.start, groups)}</span>
               </div>
               <input type="checkbox" className="toggle toggle-xs toggle-accent" checked={enabled} onChange={(e) => setOv(c.id, { enabled: e.target.checked === c.enabled ? null : e.target.checked })} title="Chapter on/off for this day" />
             </div>
@@ -576,7 +578,7 @@ function DayEditor(props: {
                 </>
               ) : (
                 <>
-                  <span>{describeStart(c.start)}</span>
+                  <span>{describeStart(c.start, groups)}</span>
                   <button className="btn btn-ghost btn-xs" onClick={() => setOv(c.id, { start: { ...c.start } })}>
                     change
                   </button>
@@ -607,7 +609,7 @@ function DayEditor(props: {
           <div className="collapse-title flex min-h-0 cursor-pointer items-center gap-2 py-2 pr-2" onClick={() => setOpenExtra(openExtra === c.id ? null : c.id)}>
             <span className="swatch" style={{ background: c.color ?? "#556" }} />
             <b className="text-sm">{c.name}</b>
-            <span className="font-mono text-xs opacity-60">{describeStart(c.start)}</span>
+            <span className="font-mono text-xs opacity-60">{describeStart(c.start, groups)}</span>
             <span className="badge badge-xs badge-outline ml-auto">this day</span>
             <span onClick={(e) => e.stopPropagation()}>
               <Confirm text="Remove?" onYes={() => setPlan({ ...plan, extra_chapters: plan.extra_chapters.filter((x) => x.id !== c.id), chapter_overrides: plan.chapter_overrides.filter((o) => o.chapter_id !== c.id) })} className="btn btn-ghost btn-xs text-error">

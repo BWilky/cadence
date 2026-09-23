@@ -347,3 +347,74 @@ async def test_sensor_start_hard_time_without_trigger(engine, fake_ha):
     await engine.tick()
     assert engine.last_status.chapter["name"] == "Coffee Bar"
     assert engine.last_status.chapter["start"].startswith("2026-09-22T06:45")
+
+
+async def test_sensor_group_reference_any_and_all(engine, fake_ha):
+    from cadence.models import SensorGroup
+
+    _configure(engine, fake_ha)
+    s = engine.settings()
+    s.sensor_groups = [
+        SensorGroup(id="lounge", name="Lounge", entities=["binary_sensor.a", "binary_sensor.b"], mode="any"),
+        SensorGroup(id="both", name="Both", entities=["binary_sensor.a", "binary_sensor.b"], mode="all"),
+    ]
+    engine.save_settings(s)
+    fake_ha.set("binary_sensor.a", "on")
+    fake_ha.set("binary_sensor.b", "off")
+    assert engine._sensor_state("group:lounge") == "on"
+    assert engine._sensor_state("group:both") == "off"
+    assert engine._sensor_state("group:missing") is None
+    assert engine._sensor_state("binary_sensor.b") == "off"
+    assert engine._sensor_label("group:lounge") == "Lounge (group)"
+    fake_ha.set("binary_sensor.b", "on")
+    assert engine._sensor_state("group:both") == "on"
+
+
+async def test_hold_on_sensor_group(engine, fake_ha):
+    from cadence.engine.engine import KIND_TEMPLATE
+    from cadence.models import Chapter, ChapterHold, ChapterStart, SensorGroup, Template, Variant
+
+    _configure(engine, fake_ha)
+    s = engine.settings()
+    s.sensor_groups = [SensorGroup(id="lounge", name="Lounge", entities=["binary_sensor.a", "binary_sensor.b"], mode="any")]
+    engine.save_settings(s)
+    t = Template(
+        id="standard_day",
+        name="x",
+        chapters=[
+            Chapter(
+                id="night",
+                name="Nightlight",
+                start=ChapterStart(kind="clock", time="00:00"),
+                variants=[Variant(key="q", label="Q", scene_ids=["nightlight_quiet"])],
+            ),
+            Chapter(
+                id="late",
+                name="Late",
+                start=ChapterStart(kind="clock", time="20:00"),
+                hold=ChapterHold(entity_id="group:lounge", latest="01:30"),
+                variants=[Variant(key="o", label="O", scene_ids=["evening_dark"])],
+            ),
+            Chapter(
+                id="wind",
+                name="Wind down",
+                start=ChapterStart(kind="clock", time="22:00"),
+                variants=[Variant(key="c", label="C", scene_ids=["day_cloudy"])],
+            ),
+        ],
+    )
+    engine.store.put(KIND_TEMPLATE, "standard_day", t.model_dump())
+    fake_ha.set("binary_sensor.a", "off")
+    fake_ha.set("binary_sensor.b", "on")
+    _freeze(engine, datetime(2026, 9, 22, 22, 30, tzinfo=TZ))
+    await engine.tick()
+    assert engine.last_status.chapter["name"] == "Late"
+    assert engine.last_status.chapter_hold["label"] == "Lounge (group)"
+    held = next(r for r in engine.last_status.timeline if r.chapter_id == "wind")
+    assert held.hold is None and held.held_by == "Late"
+    late = next(r for r in engine.last_status.timeline if r.chapter_id == "late")
+    assert late.hold["label"] == "Lounge (group)"
+    fake_ha.set("binary_sensor.b", "off")
+    _freeze(engine, datetime(2026, 9, 22, 22, 45, tzinfo=TZ))
+    await engine.tick()
+    assert engine.last_status.chapter["name"] == "Wind down"

@@ -170,9 +170,9 @@ class Engine:
             if ch.motion_entity:
                 watched.add(ch.motion_entity)
             if ch.start.kind == "sensor" and ch.start.entity_id:
-                watched.add(ch.start.entity_id)
+                watched |= self._sensor_members(ch.start.entity_id, s)
             if ch.hold:
-                watched.add(ch.hold.entity_id)
+                watched |= self._sensor_members(ch.hold.entity_id, s)
         if entity_id in self.expected_leds or entity_id in self._all_led_entities():
             self._check_led(entity_id, old, new)
             self.wake()
@@ -475,6 +475,11 @@ class Engine:
         t = self._template_for(day)
         p = self.plan(day)
         chapters = resolve_day(day, t, p, s, self.tz, self.sun)
+        for r in chapters:
+            if r.start_entity:
+                r.start_entity = self._sensor_label(r.start_entity, s)
+            if r.hold:
+                r.hold["label"] = self._sensor_label(r.hold.get("entity_id"), s)
         if with_music:
             by_id = {c.id: c for c in (list(t.chapters) if t else []) + (list(p.extra_chapters) if p else [])}
             self._enrich_music(chapters, by_id, self.scenes())
@@ -511,7 +516,7 @@ class Engine:
                 m, _ = self._motion(s, ch)
                 cond = bool(m)
             elif ch.start.kind == "sensor":
-                st = self.ha.state(ch.start.entity_id) if ch.start.entity_id else None
+                st = self._sensor_state(ch.start.entity_id, s)
                 cond = st is not None and st == ch.start.to_state
             start_at: datetime | None = None
             if cond:
@@ -524,7 +529,7 @@ class Engine:
                 r.start = start_at.isoformat()
                 r.pending_condition = False
                 fired = True
-                what = ch.start.kind if ch.start.kind != "sensor" else f"{ch.start.entity_id} → {ch.start.to_state}"
+                what = ch.start.kind if ch.start.kind != "sensor" else f"{self._sensor_label(ch.start.entity_id, s)} → {ch.start.to_state}"
                 self._log("info", "chapter", f"'{r.name}' triggered by {what}" + ("" if cond else " (hard start reached)"))
         if fired:
             self._prune_runtime(day)
@@ -535,6 +540,41 @@ class Engine:
         keep = {day.isoformat(), add_days(day, -1).isoformat()}
         self.triggered = {k: v for k, v in self.triggered.items() if k.split("|")[0] in keep}
         self.released = {k: v for k, v in self.released.items() if k.split("|")[0] in keep}
+
+    # ------------------------------------------------------------------ sensor references
+    def _sensor_state(self, ref: str | None, s: Settings | None = None) -> str | None:
+        """State of a sensor reference: a Home Assistant entity or a Cadence sensor group (group:<id>)."""
+        if not ref:
+            return None
+        if ref.startswith("group:"):
+            s = s or self.settings()
+            g = next((g for g in s.sensor_groups if g.id == ref[6:]), None)
+            if not g or not g.entities:
+                return None
+            states = [self.ha.is_on(e) for e in g.entities]
+            known = [x for x in states if x is not None]
+            if not known:
+                return None
+            on = any(known) if g.mode == "any" else all(known)
+            return "on" if on else "off"
+        return self.ha.state(ref)
+
+    def _sensor_label(self, ref: str | None, s: Settings | None = None) -> str | None:
+        if not ref:
+            return None
+        if ref.startswith("group:"):
+            s = s or self.settings()
+            g = next((g for g in s.sensor_groups if g.id == ref[6:]), None)
+            return f"{g.name} (group)" if g else ref
+        return ref
+
+    def _sensor_members(self, ref: str | None, s: Settings) -> set[str]:
+        if not ref:
+            return set()
+        if ref.startswith("group:"):
+            g = next((g for g in s.sensor_groups if g.id == ref[6:]), None)
+            return set(g.entities) if g else set()
+        return {ref}
 
     # ------------------------------------------------------------------ chapter holds
     def _hold_release(
@@ -552,7 +592,7 @@ class Engine:
         if next_start is None or now < next_start:
             # The following chapter isn't due yet — the hold has nothing to hold back.
             return False, None, end
-        st = self.ha.state(ch.hold.entity_id)
+        st = self._sensor_state(ch.hold.entity_id)
         cond = st is not None and st == ch.hold.while_state
         if cond and (end is None or now < end):
             return True, None, end
@@ -601,6 +641,7 @@ class Engine:
                         "chapter": cch.name,
                         "chapter_id": cch.id,
                         "entity_id": cch.hold.entity_id,
+                        "label": self._sensor_label(cch.hold.entity_id),
                         "while_state": cch.hold.while_state,
                         "until": end.isoformat() if end else None,
                     }
@@ -633,6 +674,7 @@ class Engine:
                         "chapter": ch.name,
                         "chapter_id": ch.id,
                         "entity_id": ch.hold.entity_id,
+                        "label": self._sensor_label(ch.hold.entity_id),
                         "while_state": ch.hold.while_state,
                         "until": end.isoformat() if end else None,
                     }

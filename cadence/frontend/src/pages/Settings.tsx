@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { api, boot, type useLive } from "../api";
 import { WindowsEditor } from "../components/StartEditor";
-import { Confirm, EntityPicker, Field, NumberInput, Toggle, toast } from "../components/ui";
-import type { Settings, Template, ZoneGlow } from "../types";
+import { invalidateSensorGroups } from "../components/SensorRef";
+import { Confirm, EntityPicker, Field, NumberInput, Toggle, toast, useEntities } from "../components/ui";
+import type { SensorGroup, Settings, Template, ZoneGlow } from "../types";
+import { slug } from "../api";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -48,6 +50,7 @@ export function SettingsPage({ live }: { live: ReturnType<typeof useLive> }) {
       const r = await api.put<Settings>("api/settings", s);
       setS(r);
       setOrig(r);
+      invalidateSensorGroups(r.sensor_groups ?? []);
       toast("Settings saved");
     } catch (e) {
       toast((e as Error).message, true);
@@ -222,6 +225,10 @@ export function SettingsPage({ live }: { live: ReturnType<typeof useLive> }) {
         </div>
       </Section>
 
+      <Section title="Sensor groups" intro="Named sets of binary sensors that chapter starts and holds can reference (e.g. 'Lounge & dining occupied'). Edit them here, not in the planner. A group is on when any member is on, or when all are, as you choose.">
+        <SensorGroupsEditor groups={s.sensor_groups ?? []} onChange={(g) => setS({ ...s, sensor_groups: g })} />
+      </Section>
+
       <Section title="Calendar" intro="Add the Google Calendar integration in Home Assistant first; its calendar.* entities appear here.">
         <div className="grid gap-3 md:grid-cols-2">
           <Field label="Calendars">
@@ -296,6 +303,64 @@ export function SettingsPage({ live }: { live: ReturnType<typeof useLive> }) {
         </div>
         <p className="text-xs opacity-60">For the wall tablets, add a Webpage card to their dashboard pointing at the Cadence ingress URL with #/tablet, or open the Tablet view in Fully Kiosk.</p>
       </Section>
+    </div>
+  );
+}
+
+
+function SensorGroupsEditor({ groups, onChange }: { groups: SensorGroup[]; onChange: (g: SensorGroup[]) => void }) {
+  const all = useEntities("binary_sensor");
+  const nameOf = (eid: string) => all.find((e) => e.entity_id === eid)?.name ?? eid;
+  const setG = (i: number, patch: Partial<SensorGroup>) => onChange(groups.map((g, j) => (j === i ? { ...g, ...patch } : g)));
+  return (
+    <div className="flex flex-col gap-3">
+      {groups.map((g, i) => (
+        <div key={g.id} className="rounded-box border border-base-300 bg-base-200/60 p-3">
+          <div className="flex flex-wrap items-end gap-3">
+            <Field label="Name" className="min-w-48 flex-1">
+              <input type="text" className="input input-sm w-full" value={g.name} onChange={(e) => setG(i, { name: e.target.value })} />
+            </Field>
+            <Field label="On when">
+              <select className="select select-sm w-40" value={g.mode} onChange={(e) => setG(i, { mode: e.target.value as "any" | "all" })}>
+                <option value="any">any member is on</option>
+                <option value="all">all members are on</option>
+              </select>
+            </Field>
+            <Field label="Description" className="min-w-56 flex-1">
+              <input type="text" className="input input-sm w-full" value={g.description} onChange={(e) => setG(i, { description: e.target.value })} placeholder="What this group means" />
+            </Field>
+            <span className="badge badge-ghost badge-sm font-mono">group:{g.id}</span>
+            <Confirm text="Remove group?" onYes={() => onChange(groups.filter((_, j) => j !== i))} className="btn btn-ghost btn-sm text-error">
+              ✕
+            </Confirm>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            {g.entities.map((eid) => (
+              <span key={eid} className="badge badge-outline gap-1" title={eid}>
+                {nameOf(eid)}
+                <button type="button" className="ml-1 opacity-60 hover:opacity-100" onClick={() => setG(i, { entities: g.entities.filter((x) => x !== eid) })} aria-label={`Remove ${eid}`}>
+                  ✕
+                </button>
+              </span>
+            ))}
+            <div className="min-w-64 flex-1">
+              <EntityPicker value={null} placeholder="Add a binary sensor, group or input_boolean…" filter={(e) => /^(binary_sensor|input_boolean|group)\./.test(e.entity_id) && !g.entities.includes(e.entity_id)} onChange={(v) => v && setG(i, { entities: [...g.entities, v] })} />
+            </div>
+          </div>
+        </div>
+      ))}
+      <button
+        className="btn btn-sm btn-outline self-start"
+        onClick={() => {
+          const name = window.prompt("Group name", "Lounge occupied");
+          if (!name) return;
+          let id = slug(name);
+          if (groups.some((g) => g.id === id)) id += "_" + Date.now().toString(36);
+          onChange([...groups, { id, name, entities: [], mode: "any", description: "" }]);
+        }}
+      >
+        + Sensor group
+      </button>
     </div>
   );
 }

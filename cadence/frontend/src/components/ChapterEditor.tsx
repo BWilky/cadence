@@ -1,4 +1,5 @@
 import { slug } from "../api";
+import { SensorRef } from "./SensorRef";
 import { StartEditor } from "./StartEditor";
 import { ColorDots, EntityPicker, Field, NumberInput, Pill, Toggle } from "./ui";
 import type { CadenceScene, Chapter, SkyState, Variant } from "../types";
@@ -40,9 +41,7 @@ export function ChapterEditor({ chapter: c, scenes, onChange }: { chapter: Chapt
           />
           {c.hold ? (
             <div className="flex flex-wrap items-center gap-2 text-xs opacity-80">
-              <div className="min-w-64 flex-1">
-                <EntityPicker value={c.hold.entity_id} allowClear={false} onChange={(v) => v && onChange({ hold: { ...c.hold!, entity_id: v } })} filter={(e) => /^(binary_sensor|input_boolean|group|switch)\./.test(e.entity_id)} placeholder="Occupancy group, input_boolean…" />
-              </div>
+              <SensorRef value={c.hold.entity_id} onChange={(v) => onChange({ hold: { ...c.hold!, entity_id: v ?? "" } })} />
               <span>is</span>
               <select className="select select-sm w-auto" value={c.hold.while_state} onChange={(e) => onChange({ hold: { ...c.hold!, while_state: e.target.value as "on" | "off" } })}>
                 <option value="on">on</option>

@@ -231,6 +231,16 @@ class SkyConfig(BaseModel):
     stale_minutes: float = 30.0  # lux older than this is ignored (sun-only classification)
 
 
+class SensorGroup(BaseModel):
+    """A named set of binary sensors, referenced by chapter starts and holds as ``group:<id>``."""
+
+    id: str
+    name: str
+    entities: list[str] = Field(default_factory=list)
+    mode: Literal["any", "all"] = "any"  # on when any member is on / when all members are on
+    description: str = ""
+
+
 class ZoneGlow(BaseModel):
     """A lit area on the tablet's building photo, driven by a real light/group entity."""
 
@@ -253,6 +263,8 @@ class Settings(BaseModel):
     # Calendar overlay
     calendars: list[str] = Field(default_factory=list)
     calendar_keywords: list[str] = Field(default_factory=list)  # empty -> any event counts
+    # Sensor groups for chapter starts and holds (edited in Settings, referenced as group:<id>)
+    sensor_groups: list[SensorGroup] = Field(default_factory=list)
     # Music
     spotify_entity: str | None = None  # SpotifyPlus media_player used for search and context playback
     # Tablet

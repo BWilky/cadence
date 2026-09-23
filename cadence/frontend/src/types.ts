@@ -91,9 +91,10 @@ export interface ChapterStart {
 }
 
 export interface ChapterHold {
-  entity_id: string;
+  entity_id: string; // entity id or "group:<id>"
   while_state: "on" | "off";
   latest?: string | null;
+  label?: string | null; // filled by the backend on resolved chapters
 }
 
 export interface Chapter {
@@ -153,6 +154,14 @@ export interface SkyConfig {
   stale_minutes: number;
 }
 
+export interface SensorGroup {
+  id: string;
+  name: string;
+  entities: string[];
+  mode: "any" | "all";
+  description: string;
+}
+
 export interface ZoneGlow {
   id: string;
   name: string;
@@ -170,6 +179,7 @@ export interface Settings {
   sky: SkyConfig;
   calendars: string[];
   calendar_keywords: string[];
+  sensor_groups: SensorGroup[];
   spotify_entity?: string | null;
   zones: ZoneGlow[];
   site_name: string;
@@ -273,7 +283,7 @@ export interface EngineStatus {
   fading: { led: string; want: string; until: string }[];
   timeline: ResolvedChapter[];
   carry_over?: CarryOver | null;
-  chapter_hold?: { chapter: string; chapter_id: string; entity_id: string; while_state: string; until: string | null } | null;
+  chapter_hold?: { chapter: string; chapter_id: string; entity_id: string; label?: string | null; while_state: string; until: string | null } | null;
   last_apply: { date: string; chapter_id: string; variant_key: string | null; at: string; scenes: string[] } | null;
 }
 

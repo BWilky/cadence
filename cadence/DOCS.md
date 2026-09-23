@@ -69,6 +69,12 @@ A chapter starts:
 - when **motion** is seen or the building **falls asleep**: presets of the sensor start that use the
   global motion / asleep entities.
 
+Both sensor starts and holds can point at a single entity or at a **sensor group**: a named set of
+binary sensors defined under **Settings → Sensor groups**, on when *any* member is on or when *all*
+are, as you choose. Groups are edited there, not in the planner, so the same "Lounge & dining
+occupied" group can drive several chapters and be tuned in one place. The Barnabas seed ships three
+examples (coffee bar area, lounge & dining occupied, common floor).
+
 A chapter can also **hold**: while a sensor is on (or off) the chapter stays active and the
 following chapters wait, until the sensor clears or a hard end time passes. A hard end earlier than
 the chapter's start means the next morning, so *Late Night Crowd, hold while the lounge occupancy

@@ -69,7 +69,7 @@ export function Now({ live }: { live: Live }) {
             {st.chapter_hold ? (
               <div role="alert" className="alert alert-soft alert-accent py-2 text-xs">
                 <span>
-                  Holding <b>{st.chapter_hold.chapter}</b> while <span className="font-mono">{st.chapter_hold.entity_id}</span> is {st.chapter_hold.while_state}
+                  Holding <b>{st.chapter_hold.chapter}</b> while <span className="font-mono">{st.chapter_hold.label ?? st.chapter_hold.entity_id}</span> is {st.chapter_hold.while_state}
                   {st.chapter_hold.until ? ` · hard end ${fmtTime(st.chapter_hold.until)}` : ""}. The next chapter starts when it clears.
                 </span>
               </div>

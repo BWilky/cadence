@@ -182,7 +182,7 @@ function TemplateEditor(props: { template: Template; scenes: CadenceScene[]; set
             <div className="collapse-title flex min-h-0 cursor-pointer items-center gap-3 py-3 pr-3" onClick={() => setOpen(open === c.id ? null : c.id)}>
               <span className="swatch" style={{ background: c.color ?? "#556" }} />
               <b className="display text-lg">{c.name}</b>
-              <span className="font-mono text-xs opacity-60">{describeStart(c.start)}</span>
+              <span className="font-mono text-xs opacity-60">{describeStart(c.start, props.settings.sensor_groups)}</span>
               <span className="text-xs opacity-50">
                 {c.variants.length} variant{c.variants.length === 1 ? "" : "s"}
                 {c.fade_minutes ? ` · ${c.fade_minutes} min fade` : ""}

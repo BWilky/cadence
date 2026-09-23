@@ -951,6 +951,11 @@
   "settings": {
     "site_name": "Barnabas Light Story",
     "spotify_entity": "media_player.spotifyplus_the_station",
+    "sensor_groups": [
+      {"id": "coffee_bar", "name": "Coffee bar area", "mode": "any", "description": "Anyone at the coffee bar or in the pantry", "entities": ["binary_sensor.station_coffee_bar_motion_occupancy", "binary_sensor.pantry_occupancy", "binary_sensor.front_foyer_occupancy"]},
+      {"id": "lounge_dining", "name": "Lounge & dining occupied", "mode": "any", "description": "Late-night crowd still around", "entities": ["binary_sensor.lounge_occupancy_2", "binary_sensor.lounge_south_occupancy", "binary_sensor.dining_room_occupancy", "binary_sensor.stationmotion_bar_occupancy"]},
+      {"id": "common_floor", "name": "Common floor", "mode": "any", "description": "Any movement on the main floor", "entities": ["binary_sensor.lounge_occupancy_2", "binary_sensor.dining_room_occupancy", "binary_sensor.front_foyer_occupancy", "binary_sensor.office_occupancy_2", "binary_sensor.meeting_room_occupancy", "binary_sensor.store_occupancy", "binary_sensor.station_library_occupancy", "binary_sensor.station_coffee_bar_motion_occupancy"]}
+    ],
     "default_template_id": "standard_day",
     "auto_source": "either",
     "auto_schedule": {

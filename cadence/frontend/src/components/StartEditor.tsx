@@ -1,5 +1,6 @@
 import type { ChapterStart, StartKind, TimeWindow } from "../types";
-import { EntityPicker, NumberInput } from "./ui";
+import { SensorRef } from "./SensorRef";
+import { NumberInput } from "./ui";
 
 export function defaultStart(kind: StartKind): ChapterStart {
   if (kind === "clock") return { kind, time: "08:00", direction: "setting", offset_minutes: 0 };
@@ -51,9 +52,7 @@ export function StartEditor({ value, onChange }: { value: ChapterStart; onChange
       ) : null}
       {value.kind === "sensor" ? (
         <div className="flex flex-wrap items-center gap-2 text-xs opacity-80">
-          <div className="min-w-64 flex-1">
-            <EntityPicker value={value.entity_id} onChange={(v) => set({ entity_id: v })} filter={(e) => /^(binary_sensor|input_boolean|group|switch)\./.test(e.entity_id)} placeholder="Occupancy group, motion group, input_boolean…" />
-          </div>
+          <SensorRef value={value.entity_id} onChange={(v) => set({ entity_id: v })} />
           <span>turns</span>
           <select className="select select-sm w-auto" value={value.to_state ?? "on"} onChange={(e) => set({ to_state: e.target.value as "on" | "off" })}>
             <option value="on">on</option>
