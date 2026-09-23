@@ -21,7 +21,13 @@ export function Toaster() {
     return () => window.clearTimeout(id);
   }, [t]);
   if (!t) return null;
-  return <div className={"toast" + (t.err ? " err" : "")}>{t.text}</div>;
+  return (
+    <div className="toast toast-center toast-bottom z-[100]">
+      <div className={"alert alert-soft " + (t.err ? "alert-error" : "alert-success")}>
+        <span>{t.text}</span>
+      </div>
+    </div>
+  );
 }
 
 // ------------------------------------------------------------------ entity cache + picker
@@ -55,6 +61,7 @@ export function EntityPicker(props: {
   placeholder?: string;
   filter?: (e: HAEntity) => boolean;
   allowClear?: boolean;
+  size?: "sm" | "md";
 }) {
   const all = useEntities(props.domain);
   const [q, setQ] = useState("");
@@ -80,12 +87,19 @@ export function EntityPicker(props: {
     setQ("");
     setOpen(false);
   };
+  const sz = props.size === "md" ? "" : " input-sm";
   return (
-    <div className="picker" ref={ref}>
-      <div className="row" style={{ flexWrap: "nowrap" }}>
+    <div className="relative w-full" ref={ref}>
+      <label className={"input w-full" + sz}>
+        <svg className="h-[1em] opacity-50" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+          <g strokeLinejoin="round" strokeLinecap="round" strokeWidth="2.5" fill="none" stroke="currentColor">
+            <circle cx="11" cy="11" r="8"></circle>
+            <path d="m21 21-4.3-4.3"></path>
+          </g>
+        </svg>
         <input
           type="search"
-          style={{ flex: 1 }}
+          className="grow"
           placeholder={props.placeholder ?? (props.domain ? `Search ${props.domain}.* …` : "Search entities…")}
           value={open ? q : current ? `${current.name}` : props.value ?? ""}
           onFocus={() => {
@@ -104,38 +118,41 @@ export function EntityPicker(props: {
           }}
         />
         {props.allowClear !== false && props.value ? (
-          <button className="btn sm ghost" title="Clear" onClick={() => props.onChange(null)}>
-            ×
+          <button type="button" className="btn btn-ghost btn-xs btn-circle" title="Clear" onMouseDown={(e) => e.preventDefault()} onClick={() => props.onChange(null)}>
+            ✕
           </button>
         ) : null}
-      </div>
-      {props.value && !open ? <div className="help mono">{props.value}</div> : null}
+      </label>
+      {props.value && !open ? <div className="mt-0.5 font-mono text-[11px] opacity-60 truncate">{props.value}</div> : null}
       {open ? (
-        <div className="results">
-          {results.length === 0 ? <div className="help" style={{ padding: 8 }}>No matches{all.length === 0 ? " (is Home Assistant connected?)" : ""}</div> : null}
+        <ul className="menu menu-sm absolute left-0 right-0 top-full z-50 mt-1 max-h-64 flex-nowrap overflow-y-auto rounded-box border border-base-300 bg-base-200 shadow-xl">
+          {results.length === 0 ? <li className="menu-title">No matches{all.length === 0 ? " (is Home Assistant connected?)" : ""}</li> : null}
           {results.map((e, i) => (
-            <button key={e.entity_id} className={i === hl ? "hl" : ""} onMouseDown={() => pick(e)}>
-              <span className="row" style={{ width: "100%", flexWrap: "nowrap" }}>
-                <span>{e.name}</span>
-                <span className="st">{e.state}</span>
-              </span>
-              <span className="eid">
-                {e.entity_id}
-                {e.keypad ? ` · ${e.keypad}` : ""}
-              </span>
-            </button>
+            <li key={e.entity_id}>
+              <button type="button" className={"flex flex-col items-start gap-0 " + (i === hl ? "menu-active" : "")} onMouseDown={() => pick(e)}>
+                <span className="flex w-full items-center gap-2">
+                  <span className="truncate">{e.name}</span>
+                  <span className="ml-auto font-mono text-[11px] text-accent">{e.state}</span>
+                </span>
+                <span className="font-mono text-[11px] opacity-60">
+                  {e.entity_id}
+                  {e.keypad ? ` · ${e.keypad}` : ""}
+                </span>
+              </button>
+            </li>
           ))}
-        </div>
+        </ul>
       ) : null}
     </div>
   );
 }
 
 // ------------------------------------------------------------------ small inputs
-export function NumberInput(props: { value: number | null | undefined; onChange: (v: number | null) => void; step?: number; min?: number; max?: number; width?: number; placeholder?: string }) {
+export function NumberInput(props: { value: number | null | undefined; onChange: (v: number | null) => void; step?: number; min?: number; max?: number; width?: number; placeholder?: string; className?: string }) {
   return (
     <input
       type="number"
+      className={"input input-sm " + (props.className ?? "")}
       style={{ width: props.width ?? 90 }}
       step={props.step ?? 1}
       min={props.min}
@@ -147,13 +164,23 @@ export function NumberInput(props: { value: number | null | undefined; onChange:
   );
 }
 
-export function Toggle(props: { checked: boolean; onChange: (v: boolean) => void; label: string; help?: string }) {
+export function Field(props: { label: string; help?: string; children: React.ReactNode; className?: string }) {
   return (
-    <label className="row" style={{ cursor: "pointer", alignItems: "flex-start" }}>
-      <input type="checkbox" checked={props.checked} onChange={(e) => props.onChange(e.target.checked)} style={{ marginTop: 2 }} />
+    <fieldset className={"fieldset p-0 " + (props.className ?? "")}>
+      <legend className="fieldset-legend pb-1 pt-0 text-xs opacity-70">{props.label}</legend>
+      {props.children}
+      {props.help ? <p className="label text-xs whitespace-normal">{props.help}</p> : null}
+    </fieldset>
+  );
+}
+
+export function Toggle(props: { checked: boolean; onChange: (v: boolean) => void; label: string; help?: string; color?: string }) {
+  return (
+    <label className="flex cursor-pointer items-start gap-3">
+      <input type="checkbox" className={"toggle toggle-sm mt-0.5 " + (props.color ?? "toggle-primary")} checked={props.checked} onChange={(e) => props.onChange(e.target.checked)} />
       <span>
-        <div>{props.label}</div>
-        {props.help ? <div className="help">{props.help}</div> : null}
+        <div className="text-sm">{props.label}</div>
+        {props.help ? <div className="text-xs opacity-60">{props.help}</div> : null}
       </span>
     </label>
   );
@@ -168,7 +195,8 @@ export function Confirm(props: { text: string; onYes: () => void; children: Reac
   }, [arm]);
   return (
     <button
-      className={props.className ?? "btn sm danger"}
+      type="button"
+      className={(props.className ?? "btn btn-sm btn-outline btn-error") + (arm ? " btn-active" : "")}
       onClick={() => {
         if (arm) {
           setArm(false);
@@ -181,6 +209,22 @@ export function Confirm(props: { text: string; onYes: () => void; children: Reac
   );
 }
 
+/** Pill-style toggle used for variants, conditions and scene membership. */
+export function Pill(props: { active?: boolean; auto?: boolean; onClick?: () => void; children: React.ReactNode; title?: string; disabled?: boolean; color?: string }) {
+  const tone = props.color ?? (props.auto ? "btn-accent" : "btn-primary");
+  return (
+    <button
+      type="button"
+      title={props.title}
+      disabled={props.disabled}
+      className={"btn btn-xs rounded-full " + (props.active ? tone : "btn-outline border-base-300 text-base-content/70 hover:border-base-content/40") + (props.auto && !props.active ? " border-dashed" : "")}
+      onClick={props.onClick}
+    >
+      {props.children}
+    </button>
+  );
+}
+
 export const SKY_LABEL: Record<string, string> = { sunny: "Sunny", cloudy: "Cloudy", dark: "Dark" };
 
 export function chapterColor(c: string | null | undefined): { fill: string; line: string } {
@@ -189,4 +233,23 @@ export function chapterColor(c: string | null | undefined): { fill: string; line
     g = parseInt(hex.slice(3, 5), 16),
     b = parseInt(hex.slice(5, 7), 16);
   return { fill: `rgba(${r},${g},${b},0.28)`, line: `rgba(${r},${g},${b},0.75)` };
+}
+
+export const COLORS = ["#3a4a7a", "#e8b45a", "#f0c86a", "#7fb1d6", "#9cc9a0", "#e89a5a", "#c4706e", "#9a6ab8", "#6ed3c6", "#8a9bb0", "#2a3350"];
+
+export function ColorDots({ value, onChange }: { value: string | null | undefined; onChange: (c: string) => void }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      {COLORS.map((col) => (
+        <button
+          key={col}
+          type="button"
+          className="h-5 w-5 rounded-full border border-white/20 transition-transform hover:scale-110"
+          style={{ background: col, outline: value === col ? "2px solid var(--color-primary)" : undefined, outlineOffset: 1 }}
+          onClick={() => onChange(col)}
+          aria-label={col}
+        />
+      ))}
+    </div>
+  );
 }

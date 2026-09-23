@@ -7,22 +7,24 @@ export function defaultStart(kind: StartKind): ChapterStart {
   return { kind, direction: "setting", offset_minutes: 0, earliest: "21:00", latest: "01:00" };
 }
 
+const TIME = "input input-sm w-[7.5rem]";
+
 export function StartEditor({ value, onChange }: { value: ChapterStart; onChange: (s: ChapterStart) => void }) {
   const set = (patch: Partial<ChapterStart>) => onChange({ ...value, ...patch });
   return (
-    <div className="stack" style={{ gap: 6 }}>
-      <div className="row">
-        <select value={value.kind} onChange={(e) => onChange(defaultStart(e.target.value as StartKind))}>
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <select className="select select-sm w-auto" value={value.kind} onChange={(e) => onChange(defaultStart(e.target.value as StartKind))}>
           <option value="clock">At a clock time</option>
           <option value="sun">Relative to the sun</option>
           <option value="motion">When motion is seen</option>
           <option value="asleep">When the building falls asleep</option>
         </select>
-        {value.kind === "clock" ? <input type="time" value={value.time ?? ""} onChange={(e) => set({ time: e.target.value })} /> : null}
+        {value.kind === "clock" ? <input type="time" className={TIME} value={value.time ?? ""} onChange={(e) => set({ time: e.target.value })} /> : null}
       </div>
       {value.kind === "sun" ? (
-        <div className="row">
-          <select value={value.sun_event ?? "sunset"} onChange={(e) => set({ sun_event: e.target.value as ChapterStart["sun_event"] })}>
+        <div className="flex flex-wrap items-center gap-2 text-xs opacity-80">
+          <select className="select select-sm w-auto" value={value.sun_event ?? "sunset"} onChange={(e) => set({ sun_event: e.target.value as ChapterStart["sun_event"] })}>
             <option value="sunrise">Sunrise</option>
             <option value="sunset">Sunset</option>
             <option value="dawn">Civil dawn</option>
@@ -31,26 +33,26 @@ export function StartEditor({ value, onChange }: { value: ChapterStart; onChange
           </select>
           {value.sun_event === "elevation" ? (
             <>
-              <NumberInput value={value.elevation} onChange={(v) => set({ elevation: v })} step={0.5} min={-90} max={90} width={70} />
-              <span className="small text-2">°</span>
-              <select value={value.direction} onChange={(e) => set({ direction: e.target.value as "rising" | "setting" })}>
+              <NumberInput value={value.elevation} onChange={(v) => set({ elevation: v })} step={0.5} min={-90} max={90} width={72} />
+              <span>°</span>
+              <select className="select select-sm w-auto" value={value.direction} onChange={(e) => set({ direction: e.target.value as "rising" | "setting" })}>
                 <option value="setting">while setting</option>
                 <option value="rising">while rising</option>
               </select>
             </>
           ) : null}
-          <span className="small text-2">offset</span>
-          <NumberInput value={value.offset_minutes} onChange={(v) => set({ offset_minutes: v ?? 0 })} step={5} width={70} />
-          <span className="small text-2">min · fallback</span>
-          <input type="time" value={value.latest ?? ""} onChange={(e) => set({ latest: e.target.value || null })} title="If the sun never reaches that point today, start at this time" />
+          <span>offset</span>
+          <NumberInput value={value.offset_minutes} onChange={(v) => set({ offset_minutes: v ?? 0 })} step={5} width={72} />
+          <span>min · fallback</span>
+          <input type="time" className={TIME} value={value.latest ?? ""} onChange={(e) => set({ latest: e.target.value || null })} title="If the sun never reaches that point today, start at this time" />
         </div>
       ) : null}
       {value.kind === "motion" || value.kind === "asleep" ? (
-        <div className="row">
-          <span className="small text-2">no earlier than</span>
-          <input type="time" value={value.earliest ?? ""} onChange={(e) => set({ earliest: e.target.value || null })} />
-          <span className="small text-2">no later than</span>
-          <input type="time" value={value.latest ?? ""} onChange={(e) => set({ latest: e.target.value || null })} />
+        <div className="flex flex-wrap items-center gap-2 text-xs opacity-80">
+          <span>no earlier than</span>
+          <input type="time" className={TIME} value={value.earliest ?? ""} onChange={(e) => set({ earliest: e.target.value || null })} />
+          <span>no later than</span>
+          <input type="time" className={TIME} value={value.latest ?? ""} onChange={(e) => set({ latest: e.target.value || null })} />
         </div>
       ) : null}
     </div>
@@ -59,24 +61,22 @@ export function StartEditor({ value, onChange }: { value: ChapterStart; onChange
 
 export function WindowsEditor({ value, onChange }: { value: TimeWindow[]; onChange: (w: TimeWindow[]) => void }) {
   return (
-    <div className="stack" style={{ gap: 6 }}>
+    <div className="flex flex-col gap-1.5">
       {value.map((w, i) => (
-        <div className="row" key={i}>
-          <input type="time" value={w.start} onChange={(e) => onChange(value.map((x, j) => (j === i ? { ...x, start: e.target.value } : x)))} />
-          <span className="small text-2">to</span>
-          <input type="time" value={w.end} onChange={(e) => onChange(value.map((x, j) => (j === i ? { ...x, end: e.target.value } : x)))} />
-          <button className="btn sm ghost" onClick={() => onChange(value.filter((_, j) => j !== i))}>
-            ×
+        <div className="join" key={i}>
+          <input type="time" className="input input-sm join-item w-[7.5rem]" value={w.start} onChange={(e) => onChange(value.map((x, j) => (j === i ? { ...x, start: e.target.value } : x)))} />
+          <span className="join-item flex items-center border border-base-300 bg-base-200 px-2 text-xs opacity-70">to</span>
+          <input type="time" className="input input-sm join-item w-[7.5rem]" value={w.end} onChange={(e) => onChange(value.map((x, j) => (j === i ? { ...x, end: e.target.value } : x)))} />
+          <button type="button" className="btn btn-sm btn-ghost join-item" onClick={() => onChange(value.filter((_, j) => j !== i))}>
+            ✕
           </button>
         </div>
       ))}
-      <div>
-        <button className="btn sm" onClick={() => onChange([...value, { start: "06:30", end: "23:30" }])}>
+      <div className="flex items-center gap-2">
+        <button type="button" className="btn btn-xs btn-outline" onClick={() => onChange([...value, { start: "06:30", end: "23:30" }])}>
           + window
         </button>
-        <span className="help" style={{ marginLeft: 8 }}>
-          An end before the start wraps past midnight.
-        </span>
+        <span className="text-xs opacity-60">An end before the start wraps past midnight.</span>
       </div>
     </div>
   );

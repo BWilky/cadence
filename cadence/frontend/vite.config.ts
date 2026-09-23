@@ -1,10 +1,11 @@
-import { defineConfig } from "vite";
+import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
+import { defineConfig } from "vite";
 
 // Relative base so the same build works under HA ingress (/api/hassio_ingress/<token>/) and on the
 // external port (/). The backend injects <base href> at request time.
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   base: "./",
   build: { outDir: "dist", emptyOutDir: true, sourcemap: false },
   server: {

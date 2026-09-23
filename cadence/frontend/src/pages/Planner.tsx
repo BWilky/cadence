@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { addDays, api, describeStart, fmtTime, todayISO, type useLive } from "../api";
 import { StartEditor, WindowsEditor } from "../components/StartEditor";
 import { Track } from "../components/Track";
-import { toast } from "../components/ui";
+import { Field, Pill, toast } from "../components/ui";
 import type { ChapterOverride, DayPlan, DayView, ResolvedChapter, Template } from "../types";
 
 const CHUNK = 21;
@@ -21,11 +21,8 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
     api.get<Template[]>("api/templates").then(setTemplates).catch(() => undefined);
   }, []);
 
-  const fetchRange = useCallback(async (start: string, end: string) => {
-    return api.get<DayView[]>(`api/days?start=${start}&end=${end}`);
-  }, []);
+  const fetchRange = useCallback(async (start: string, end: string) => api.get<DayView[]>(`api/days?start=${start}&end=${end}`), []);
 
-  // initial load: a week back, three weeks ahead
   useEffect(() => {
     const start = addDays(today, -7);
     const end = addDays(today, CHUNK - 1);
@@ -93,13 +90,13 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
   const st = live.status;
 
   return (
-    <div className={"planner" + (selected ? " editing" : "")}>
-      <div className="days">
-        <div className="row between" style={{ marginBottom: 8 }}>
-          <div className="help">
-            Each row is a day: chapters left to right, <span style={{ color: "var(--live)" }}>■</span> auto windows, <span style={{ color: "var(--lamp-2)" }}>■</span> calendar events. Click a day to plan it.
+    <div className="grid h-full grid-cols-1 lg:grid-cols-[1fr_380px]">
+      <div className={"overflow-auto px-4 py-3 " + (selected ? "hidden lg:block" : "")}>
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <div className="text-xs opacity-60">
+            Each row is a day: chapters left to right, <span className="text-accent">■</span> auto windows, <span className="text-primary">■</span> calendar events. Click a day to plan it.
           </div>
-          <button className="btn sm ghost" disabled={loading} onClick={loadEarlier}>
+          <button className="btn btn-xs btn-ghost" disabled={loading} onClick={loadEarlier}>
             ↑ earlier days
           </button>
         </div>
@@ -109,63 +106,70 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
           const dt = new Date(d.date + "T12:00:00");
           const weekend = dt.getDay() === 0 || dt.getDay() === 6;
           const isToday = d.date === today;
+          const tweaks = d.plan?.chapter_overrides.length ?? 0;
           return (
             <div key={d.date}>
-              {showMonth ? <div className="monthhead">{dt.toLocaleDateString([], { month: "long", year: "numeric" })}</div> : null}
-              <div className={"dayrow" + (selected === d.date ? " selected" : "") + (isToday ? " today" : "") + (weekend ? " weekend" : "")}>
-                <div className="head" onClick={() => setSelected(selected === d.date ? null : d.date)}>
-                  <div className="d">
+              {showMonth ? <div className="monthhead display text-xl opacity-80">{dt.toLocaleDateString([], { month: "long", year: "numeric" })}</div> : null}
+              <div className={"grid grid-cols-[150px_1fr] items-start gap-3 border-b border-base-300 py-2 " + (isToday ? "bg-accent/5" : "")}>
+                <button
+                  type="button"
+                  className={"flex flex-col items-start gap-1 rounded-box px-2 py-1.5 text-left hover:bg-base-200 " + (selected === d.date ? "bg-base-200 ring-1 ring-primary/60" : "")}
+                  onClick={() => setSelected(selected === d.date ? null : d.date)}
+                >
+                  <div className={"display text-lg leading-none " + (isToday ? "text-accent" : weekend ? "opacity-70" : "")}>
                     {dt.toLocaleDateString([], { weekday: "short" })} {dt.getDate()}
-                    {isToday ? <span className="chip live" style={{ marginLeft: 6 }}>today</span> : null}
+                    {isToday ? <span className="badge badge-xs badge-accent ml-2 align-middle">today</span> : null}
                   </div>
-                  <div className="t">
+                  <div className="text-[11px] opacity-60">
                     {d.template_name ?? "no template"}
                     {d.plan?.template_id ? " · override" : ""}
                   </div>
-                  <div className="row" style={{ gap: 4 }}>
-                    {d.occupied ? <span className="chip">occupied</span> : null}
-                    {d.auto_mode === "off" ? <span className="chip off">auto off</span> : d.auto_mode === "on" ? <span className="chip live">auto on</span> : null}
-                    {d.plan && (d.plan.chapter_overrides.length > 0 || d.plan.notes) ? <span className="tag">{d.plan.chapter_overrides.length ? `${d.plan.chapter_overrides.length} tweak${d.plan.chapter_overrides.length > 1 ? "s" : ""}` : "note"}</span> : null}
+                  <div className="flex flex-wrap gap-1">
+                    {d.occupied ? <span className="badge badge-xs badge-primary badge-soft">occupied</span> : null}
+                    {d.auto_mode === "off" ? <span className="badge badge-xs badge-ghost">auto off</span> : d.auto_mode === "on" ? <span className="badge badge-xs badge-accent badge-soft">auto on</span> : null}
+                    {tweaks || d.plan?.notes ? <span className="badge badge-xs badge-outline">{tweaks ? `${tweaks} tweak${tweaks > 1 ? "s" : ""}` : "note"}</span> : null}
                   </div>
                   {d.events.length ? (
-                    <div className="events">
+                    <div className="flex flex-wrap gap-1">
                       {d.events.slice(0, 3).map((e, j) => (
-                        <span key={j} className="ev" title={e.summary ?? ""}>
+                        <span key={j} className="badge badge-xs badge-primary badge-soft max-w-[140px] truncate" title={e.summary ?? ""}>
                           {e.all_day ? "" : fmtTime(e.start) + " "}
                           {e.summary}
                         </span>
                       ))}
-                      {d.events.length > 3 ? <span className="ev">+{d.events.length - 3}</span> : null}
+                      {d.events.length > 3 ? <span className="badge badge-xs badge-ghost">+{d.events.length - 3}</span> : null}
                     </div>
                   ) : null}
-                </div>
-                <div className="trackwrap">
-                  <Track
-                    chapters={d.chapters}
-                    date={d.date}
-                    now={st?.now}
-                    sunrise={d.sunrise}
-                    sunset={d.sunset}
-                    autoWindows={d.auto_windows}
-                    autoMode={d.auto_mode}
-                    events={d.events}
-                    currentId={isToday ? st?.chapter?.id : null}
-                    variantOf={(c) => (isToday && st?.chapter?.id === c.chapter_id ? st?.variant?.label : c.forced_variant ? c.forced_variant : null)}
-                    onChapter={(c) => {
-                      setSelected(d.date);
-                      setFocusChapter(c.chapter_id);
-                    }}
-                  />
+                </button>
+                <div className="overflow-x-auto pb-0.5">
+                  <div className="min-w-[720px]">
+                    <Track
+                      chapters={d.chapters}
+                      date={d.date}
+                      now={st?.now}
+                      sunrise={d.sunrise}
+                      sunset={d.sunset}
+                      autoWindows={d.auto_windows}
+                      autoMode={d.auto_mode}
+                      events={d.events}
+                      currentId={isToday ? st?.chapter?.id : null}
+                      variantOf={(c) => (isToday && st?.chapter?.id === c.chapter_id ? st?.variant?.label : c.forced_variant ? c.forced_variant : null)}
+                      onChapter={(c) => {
+                        setSelected(d.date);
+                        setFocusChapter(c.chapter_id);
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
           );
         })}
-        <div ref={bottomRef} className="sentinel">
-          {loading ? "loading…" : "scroll for more"}
+        <div ref={bottomRef} className="flex h-12 items-center justify-center gap-2 text-xs opacity-60">
+          {loading ? <span className="loading loading-dots loading-sm" /> : "scroll for more"}
         </div>
       </div>
-      <aside className="side">
+      <aside className={"overflow-auto border-l border-base-300 bg-base-200 px-4 py-3 " + (selected ? "" : "hidden lg:block")}>
         {selectedView ? (
           <DayEditor
             key={selectedView.date}
@@ -179,12 +183,10 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
             onSaved={() => refreshDay(selectedView.date)}
           />
         ) : (
-          <div className="stack">
+          <div className="flex flex-col gap-3">
             <div className="eyebrow">Day planner</div>
-            <div className="help">
-              Pick a day on the left. You can give it a different template, move chapter start times, force a variant, switch auto mode on or off, and leave a note for the team.
-            </div>
-            <div className="help">Days with a calendar event matching your keywords are marked occupied (Settings → Calendar).</div>
+            <p className="text-sm opacity-70">Pick a day on the left. You can give it a different template, move chapter start times, force a variant, switch auto mode on or off, and leave a note for the team.</p>
+            <p className="text-xs opacity-60">Days with a calendar event matching your keywords are marked occupied (Settings → Calendar).</p>
           </div>
         )}
       </aside>
@@ -247,35 +249,31 @@ function DayEditor(props: { view: DayView; templates: Template[]; focusChapter: 
       setSaving(false);
     }
   };
-
   const resolved = (cid: string): ResolvedChapter | undefined => view.chapters.find((c) => c.chapter_id === cid);
 
   return (
-    <div className="stack">
-      <div className="row between">
+    <div className="flex flex-col gap-4">
+      <div className="flex items-start justify-between gap-2">
         <div>
           <div className="eyebrow">Plan for</div>
-          <div className="serif" style={{ fontStyle: "italic", fontSize: 24 }}>
-            {new Date(view.date + "T12:00:00").toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}
-          </div>
+          <div className="display text-2xl leading-tight">{new Date(view.date + "T12:00:00").toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}</div>
         </div>
-        <button className="btn sm ghost" onClick={props.onClose}>
-          Close
+        <button className="btn btn-ghost btn-sm btn-circle" onClick={props.onClose} aria-label="Close">
+          ✕
         </button>
       </div>
       {view.events.length ? (
-        <div className="card" style={{ padding: "8px 12px" }}>
-          <div className="eyebrow">Calendar</div>
+        <div className="rounded-box border border-base-300 bg-base-100/60 p-3 text-sm">
+          <div className="eyebrow mb-1">Calendar</div>
           {view.events.map((e, i) => (
-            <div key={i} className="small">
-              <span className="mono text-2">{e.all_day ? "all day" : fmtTime(e.start) + "–" + fmtTime(e.end)}</span> {e.summary}
+            <div key={i} className="truncate">
+              <span className="font-mono text-xs opacity-60">{e.all_day ? "all day" : fmtTime(e.start) + "–" + fmtTime(e.end)}</span> {e.summary}
             </div>
           ))}
         </div>
       ) : null}
-      <div className="field">
-        <label>Template</label>
-        <select value={plan.template_id ?? ""} onChange={(e) => setPlan({ ...plan, template_id: e.target.value || null })}>
+      <Field label="Template">
+        <select className="select select-sm w-full" value={plan.template_id ?? ""} onChange={(e) => setPlan({ ...plan, template_id: e.target.value || null })}>
           <option value="">Default ({props.templates.find((t) => t.id === view.template_id && !view.plan?.template_id)?.name ?? view.template_name ?? "none"})</option>
           {props.templates.map((t) => (
             <option key={t.id} value={t.id}>
@@ -283,84 +281,79 @@ function DayEditor(props: { view: DayView; templates: Template[]; focusChapter: 
             </option>
           ))}
         </select>
-      </div>
-      <div className="field">
-        <label>Auto mode</label>
-        <div className="row">
+      </Field>
+      <Field label="Auto mode">
+        <div className="flex flex-wrap gap-1.5">
           {(["default", "on", "off", "windows"] as const).map((m) => (
-            <button key={m} className={"vbtn" + (plan.auto === m ? " active" : "")} onClick={() => setPlan({ ...plan, auto: m })}>
+            <Pill key={m} active={plan.auto === m} onClick={() => setPlan({ ...plan, auto: m })}>
               {m === "default" ? "Weekly schedule" : m === "windows" ? "Custom hours" : m === "on" ? "On all day" : "Off all day"}
-            </button>
+            </Pill>
           ))}
         </div>
-        {plan.auto === "windows" ? <WindowsEditor value={plan.auto_windows} onChange={(w) => setPlan({ ...plan, auto_windows: w })} /> : null}
-      </div>
-      <div className="field">
-        <label>Occupied</label>
-        <div className="row">
+        {plan.auto === "windows" ? (
+          <div className="mt-2">
+            <WindowsEditor value={plan.auto_windows} onChange={(w) => setPlan({ ...plan, auto_windows: w })} />
+          </div>
+        ) : null}
+      </Field>
+      <Field label="Occupied">
+        <div className="flex flex-wrap gap-1.5">
           {([null, true, false] as const).map((v) => (
-            <button key={String(v)} className={"vbtn" + (plan.occupied === v ? " active" : "") + (v === null ? " auto" : "")} onClick={() => setPlan({ ...plan, occupied: v })}>
+            <Pill key={String(v)} active={plan.occupied === v} auto={v === null} onClick={() => setPlan({ ...plan, occupied: v })}>
               {v === null ? `From calendar (${view.occupied == null ? "unknown" : view.occupied ? "yes" : "no"})` : v ? "Yes" : "No"}
-            </button>
+            </Pill>
           ))}
         </div>
-      </div>
-      <div className="field">
-        <label>Notes for the team</label>
-        <textarea value={plan.notes} onChange={(e) => setPlan({ ...plan, notes: e.target.value })} placeholder="Retreat group arriving at 4, keep the lounge bright…" />
-      </div>
+      </Field>
+      <Field label="Notes for the team">
+        <textarea className="textarea textarea-sm w-full" value={plan.notes} onChange={(e) => setPlan({ ...plan, notes: e.target.value })} placeholder="Retreat group arriving at 4, keep the lounge bright…" />
+      </Field>
 
-      <div className="eyebrow" style={{ marginTop: 6 }}>
-        Chapters {tmpl ? `· ${tmpl.name}` : ""}
-      </div>
-      {!tmpl ? <div className="help">No template resolved for this day.</div> : null}
+      <div className="eyebrow">Chapters {tmpl ? `· ${tmpl.name}` : ""}</div>
+      {!tmpl ? <p className="text-xs opacity-60">No template resolved for this day.</p> : null}
       {tmpl?.chapters.map((c) => {
         const ov = ovFor(c.id);
         const res = resolved(c.id);
         const enabled = ov?.enabled ?? c.enabled;
         const isFocus = props.focusChapter === c.id;
         return (
-          <div key={c.id} ref={isFocus ? focusRef : undefined} className={"override" + (ov ? " changed" : "")} style={isFocus ? { boxShadow: "0 0 0 1px var(--lamp) inset" } : undefined}>
-            <div className="row between">
-              <div className="row">
+          <div key={c.id} ref={isFocus ? focusRef : undefined} className={"flex flex-col gap-2 rounded-box border p-3 " + (ov ? "border-primary/50" : "border-base-300") + (isFocus ? " ring-1 ring-primary" : "")}>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
                 <span className="swatch" style={{ background: c.color ?? "#556" }} />
-                <b className="serif" style={{ fontStyle: "italic", fontSize: 16, opacity: enabled ? 1 : 0.5 }}>
-                  {c.name}
-                </b>
-                <span className="mono small text-2">{res?.start ? fmtTime(res.start) : describeStart(ov?.start ?? c.start)}</span>
+                <b className={"display text-base " + (enabled ? "" : "opacity-50")}>{c.name}</b>
+                <span className="font-mono text-xs opacity-60">{res?.start ? fmtTime(res.start) : describeStart(ov?.start ?? c.start)}</span>
               </div>
-              <label className="row small" style={{ gap: 4 }}>
-                <input type="checkbox" checked={enabled} onChange={(e) => setOv(c.id, { enabled: e.target.checked === c.enabled ? null : e.target.checked })} /> on
-              </label>
+              <input type="checkbox" className="toggle toggle-xs toggle-accent" checked={enabled} onChange={(e) => setOv(c.id, { enabled: e.target.checked === c.enabled ? null : e.target.checked })} title="Chapter on/off for this day" />
             </div>
-            <div className="row">
-              <span className="small text-2">Start</span>
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="opacity-60">Start</span>
               {ov?.start ? (
                 <>
                   <StartEditor value={ov.start} onChange={(s) => setOv(c.id, { start: s })} />
-                  <button className="btn sm ghost" onClick={() => setOv(c.id, { start: null })}>
+                  <button className="btn btn-ghost btn-xs" onClick={() => setOv(c.id, { start: null })}>
                     reset
                   </button>
                 </>
               ) : (
                 <>
-                  <span className="small">{describeStart(c.start)}</span>
-                  <button className="btn sm ghost" onClick={() => setOv(c.id, { start: { ...c.start } })}>
+                  <span>{describeStart(c.start)}</span>
+                  <button className="btn btn-ghost btn-xs" onClick={() => setOv(c.id, { start: { ...c.start } })}>
                     change
                   </button>
                 </>
               )}
             </div>
             {c.variants.length > 1 ? (
-              <div className="row">
-                <span className="small text-2">Variant</span>
-                <button className={"vbtn auto" + (!ov?.variant_key ? " active" : "")} onClick={() => setOv(c.id, { variant_key: null })}>
+              <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                <span className="opacity-60">Variant</span>
+                <Pill auto active={!ov?.variant_key} onClick={() => setOv(c.id, { variant_key: null })}>
                   Auto
-                </button>
+                </Pill>
                 {c.variants.map((v) => (
-                  <button key={v.key} className={"vbtn" + (ov?.variant_key === v.key ? " active" : "")} onClick={() => setOv(c.id, { variant_key: v.key })}>
+                  <Pill key={v.key} active={ov?.variant_key === v.key} onClick={() => setOv(c.id, { variant_key: v.key })}>
                     {v.label}
-                  </button>
+                  </Pill>
                 ))}
               </div>
             ) : null}
@@ -368,12 +361,12 @@ function DayEditor(props: { view: DayView; templates: Template[]; focusChapter: 
         );
       })}
 
-      <div className="row" style={{ position: "sticky", bottom: 0, background: "var(--surface)", padding: "10px 0" }}>
-        <button className="btn primary" disabled={saving || !dirty} onClick={save}>
+      <div className="sticky bottom-0 -mx-4 flex gap-2 border-t border-base-300 bg-base-200 px-4 py-3">
+        <button className="btn btn-primary btn-sm" disabled={saving || !dirty} onClick={save}>
           Save day
         </button>
         {view.plan ? (
-          <button className="btn danger" disabled={saving} onClick={clear}>
+          <button className="btn btn-outline btn-error btn-sm" disabled={saving} onClick={clear}>
             Remove overrides
           </button>
         ) : null}

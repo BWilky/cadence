@@ -155,8 +155,8 @@ export function Tablet({ live, query }: { live: Live; query: URLSearchParams }) 
         <header className="hud-top">
           <div className="now">
             <div className="eyebrow">
-              Now {chip ? <span className={"chip " + (chip.cls === "auto" ? "live" : chip.cls)}>{chip.text}</span> : null}
-              {st?.variant ? <span className="chip">{st.variant.label}</span> : null}
+              Now {chip ? <span className={"tchip " + (chip.cls === "auto" ? "live" : chip.cls)}>{chip.text}</span> : null}
+              {st?.variant ? <span className="tchip">{st.variant.label}</span> : null}
             </div>
             <h1 className="name">{st ? st.chapter?.name ?? "Nothing scheduled" : "Connecting…"}</h1>
             <div className="next">
@@ -165,7 +165,7 @@ export function Tablet({ live, query }: { live: Live; query: URLSearchParams }) 
                   Next <b>{st.next_chapter.pending_condition ? `waiting for ${st.next_chapter.kind}` : fmtTime(st.next_chapter.at)}</b> {st.next_chapter.name}
                 </>
               ) : null}
-              {st?.hold.active ? <div className="danger">Changed by hand · resumes {st.hold.until ? fmtTime(st.hold.until) : "at the next chapter"}</div> : null}
+              {st?.hold.active ? <div className="tdanger">Changed by hand · resumes {st.hold.until ? fmtTime(st.hold.until) : "at the next chapter"}</div> : null}
             </div>
           </div>
           <div className="clock">
@@ -218,15 +218,15 @@ export function Tablet({ live, query }: { live: Live; query: URLSearchParams }) 
             {viewHours >= 24 ? "Whole day" : `${viewHours} h`}
           </button>
           {menu ? (
-            <div className="menu" style={{ position: "absolute", right: 0, bottom: 44, background: "var(--surface)", border: "1px solid var(--line-2)", borderRadius: 8, padding: 6, display: "flex", flexDirection: "column", minWidth: 170, zIndex: 30 }}>
+            <div className="tmenu">
               <div className="eyebrow" style={{ padding: "6px 10px 2px" }}>
                 Timeline shows
               </div>
               {[3, 6, 12, 24].map((h) => (
                 <button
                   key={h}
-                  className="btn ghost"
-                  style={{ justifyContent: "space-between", color: viewHours === h ? "var(--lamp-2)" : undefined }}
+                  className="tmenu-item"
+                  style={{ color: viewHours === h ? "var(--lamp-2)" : undefined }}
                   onClick={() => {
                     setViewHours(h);
                     setMenu(false);
@@ -236,8 +236,8 @@ export function Tablet({ live, query }: { live: Live; query: URLSearchParams }) 
                   {h === 24 ? "Whole day" : `${h} hours`}
                 </button>
               ))}
-              <hr className="sep" />
-              <a className="btn ghost" href="#/now" target="_blank" rel="noreferrer">
+              <hr className="tsep" />
+              <a className="tmenu-item" href="#/now" target="_blank" rel="noreferrer">
                 Open the planner
               </a>
             </div>
@@ -313,23 +313,23 @@ export function Tablet({ live, query }: { live: Live; query: URLSearchParams }) 
             <span>
               Starts <b>{open.start ? fmtTime(open.start) : `when ${open.kind} (from ${hhmm(minutesOfDay(open.nominal))})`}</b>
             </span>
-            {open.fade_minutes ? <span className="text-2">{open.fade_minutes} min fade</span> : null}
+            {open.fade_minutes ? <span style={{ color: "var(--text-2)" }}>{open.fade_minutes} min fade</span> : null}
           </div>
           {open.note ? <p className="note">{open.note}</p> : null}
           {open.variants.length ? (
             <div className="variants">
               {open.variants.map((v) => (
-                <button key={v.key} className={"vbtn" + (st?.chapter?.id === open.chapter_id && st?.variant?.key === v.key ? " active" : "")} onClick={() => applyChapter(open, v.key)}>
+                <button key={v.key} className={"tvbtn" + (st?.chapter?.id === open.chapter_id && st?.variant?.key === v.key ? " active" : "")} onClick={() => applyChapter(open, v.key)}>
                   {v.label}
                 </button>
               ))}
             </div>
           ) : null}
           <div className="actions">
-            <button className="btn primary" onClick={() => applyChapter(open)}>
+            <button className="tbtn primary" onClick={() => applyChapter(open)}>
               {st?.chapter?.id === open.chapter_id ? "Re-apply now" : "Start this chapter now"}
             </button>
-            <button className="btn ghost" onClick={() => setOpen(null)}>
+            <button className="tbtn" onClick={() => setOpen(null)}>
               Close
             </button>
           </div>
@@ -339,7 +339,7 @@ export function Tablet({ live, query }: { live: Live; query: URLSearchParams }) 
       {!st ? (
         <div className="lock">
           <div className="big">Cadence</div>
-          <div className="text-2">{live.connected ? "Waiting for the engine…" : "Connecting…"}</div>
+          <div style={{ color: "var(--text-2)" }}>{live.connected ? "Waiting for the engine…" : "Connecting…"}</div>
         </div>
       ) : null}
     </div>
