@@ -281,3 +281,260 @@ body {
   cursor: ew-resize;
   user-select: none;
 }
+
+/* ---------- vertical day column (Planner week view) ---------- */
+.col {
+  position: relative;
+  height: 100%;
+  min-width: 0;
+  border-left: 1px solid color-mix(in oklab, var(--color-base-content) 8%, transparent);
+  transition: opacity 0.15s;
+}
+.col.vacant {
+  opacity: 0.28;
+}
+.col.vacant:hover {
+  opacity: 0.5;
+}
+.col.following {
+  opacity: 0.82;
+}
+.col .hline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px solid color-mix(in oklab, var(--color-base-content) 6%, transparent);
+  pointer-events: none;
+}
+.col .night {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: color-mix(in oklab, var(--color-base-content) 4%, transparent);
+  pointer-events: none;
+}
+.col .auto {
+  position: absolute;
+  left: 2px;
+  width: 3px;
+  border-radius: 2px;
+  background: color-mix(in oklab, var(--color-accent) 55%, transparent);
+  pointer-events: none;
+}
+.col .event {
+  position: absolute;
+  left: 7px;
+  width: 3px;
+  border-radius: 2px;
+  background: color-mix(in oklab, var(--color-primary) 60%, transparent);
+  pointer-events: none;
+}
+.col .block {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  border-radius: 6px;
+  border: 1px solid var(--c-line);
+  border-top-width: 3px;
+  background: color-mix(in oklab, var(--c-fill) 55%, var(--color-base-100));
+  overflow: hidden;
+  padding: 5px 8px;
+  font-size: 12px;
+  line-height: 1.25;
+  color: var(--color-base-content);
+  cursor: pointer;
+}
+.col.has-music .block {
+  right: 18px;
+}
+.col .block:hover {
+  filter: brightness(1.05);
+  box-shadow: 0 1px 6px color-mix(in oklab, var(--color-base-content) 12%, transparent);
+}
+.col .block .t {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: color-mix(in oklab, var(--color-base-content) 60%, transparent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.col .block .n {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.col .block .v {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: color-mix(in oklab, var(--color-base-content) 65%, transparent);
+}
+.col .block.dim {
+  opacity: 0.5;
+}
+.col .block.cond {
+  border-style: dashed;
+}
+.col .block.ghost {
+  border-style: dotted;
+  opacity: 0.55;
+  cursor: default;
+}
+.col .block.held {
+  border-style: dashed;
+}
+.col .block.current {
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--color-accent) 60%, transparent);
+}
+.col .block .fade {
+  /* the RA2 fade: a thin ramp down the left edge, as tall as the fade is long */
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 4px;
+  background: linear-gradient(to bottom, transparent, var(--c-line));
+  pointer-events: none;
+}
+.col .block .holdmark {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 8px;
+  background: repeating-linear-gradient(135deg, color-mix(in oklab, var(--color-accent) 60%, transparent) 0 2px, transparent 2px 6px);
+  pointer-events: none;
+}
+.col .block .grip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -3px;
+  height: 9px;
+  cursor: ns-resize;
+  touch-action: none;
+}
+.col .block .grip::after {
+  content: "";
+  position: absolute;
+  left: 30%;
+  right: 30%;
+  top: 4px;
+  height: 3px;
+  border-radius: 2px;
+  background: color-mix(in oklab, var(--color-base-content) 35%, transparent);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.col .block:hover .grip::after,
+.col.dragging .grip::after {
+  opacity: 1;
+}
+.col.dragging,
+.col.dragging .block {
+  cursor: ns-resize;
+  user-select: none;
+}
+.col .playhead {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1.5px solid var(--color-accent);
+  z-index: 3;
+  pointer-events: none;
+}
+.col .playhead::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: -4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-accent);
+}
+.col .music {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 3px;
+  width: 12px;
+  pointer-events: none;
+}
+.col .music .seg {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: color-mix(in oklab, var(--color-secondary) 12%, transparent);
+  border-radius: 2px;
+  pointer-events: auto;
+}
+.col .music .env {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.col .music .env polyline {
+  fill: none;
+  stroke: color-mix(in oklab, var(--color-secondary) 65%, transparent);
+  stroke-width: 1.25;
+  vector-effect: non-scaling-stroke;
+}
+.col .music .cue {
+  position: absolute;
+  left: 4px;
+  width: 4px;
+  height: 4px;
+  margin-top: -2px;
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--color-secondary) 80%, transparent);
+}
+.col .empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 24px;
+  font-size: 11px;
+  color: color-mix(in oklab, var(--color-base-content) 45%, transparent);
+  pointer-events: none;
+}
+
+/* slide-over day pane */
+.pane-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: color-mix(in oklab, var(--color-base-content) 18%, transparent);
+}
+.pane {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 100;
+  width: min(440px, 100vw);
+  background: var(--color-base-100);
+  border-left: 1px solid var(--color-base-300);
+  box-shadow: -8px 0 30px color-mix(in oklab, var(--color-base-content) 12%, transparent);
+  overflow: auto;
+  animation: pane-in 0.18s ease-out;
+}
+@keyframes pane-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.occ-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}

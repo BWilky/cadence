@@ -418,3 +418,145 @@ async def test_hold_on_sensor_group(engine, fake_ha):
     _freeze(engine, datetime(2026, 9, 22, 22, 45, tzinfo=TZ))
     await engine.tick()
     assert engine.last_status.chapter["name"] == "Wind down"
+
+
+# ----------------------------------------------------------------------------- occupancy, vacant days, own chapters
+
+
+def _occupancy_setup(engine, fake_ha, *, vacant=False):
+    from cadence.engine.engine import KIND_TEMPLATE
+    from cadence.models import Chapter, ChapterStart, Template, Variant
+
+    _configure(engine, fake_ha)
+    s = engine.settings()
+    s.occupied_entity = "input_boolean.occ"
+    if vacant:
+        engine.store.put(
+            KIND_TEMPLATE,
+            "vacant",
+            Template(
+                id="vacant",
+                name="Vacant",
+                chapters=[
+                    Chapter(
+                        id="security",
+                        name="Security",
+                        start=ChapterStart(kind="clock", time="00:00"),
+                        variants=[Variant(key="on", label="On", scene_ids=["evening_dark"])],
+                    )
+                ],
+            ).model_dump(),
+        )
+        s.vacant_template_id = "vacant"
+    engine.save_settings(s)
+    fake_ha.set("input_boolean.occ", "off", 3600)
+
+
+async def test_vacant_day_runs_nothing_without_vacant_template(engine, fake_ha):
+    _occupancy_setup(engine, fake_ha)
+    _freeze(engine, datetime(2026, 9, 22, 9, 0, tzinfo=TZ))
+    await engine.tick()
+    st = engine.last_status
+    assert st.occupied is False and st.occupied_reason == "none"
+    assert st.chapter is None and st.template_id is None
+    assert not [c for c in fake_ha.calls if c[0] == "scene"]
+
+
+async def test_vacant_day_runs_vacant_template(engine, fake_ha):
+    _occupancy_setup(engine, fake_ha, vacant=True)
+    _freeze(engine, datetime(2026, 9, 22, 9, 0, tzinfo=TZ))
+    await engine.tick()
+    st = engine.last_status
+    assert st.template_id == "vacant" and st.chapter["name"] == "Security"
+    assert ("scene", "turn_on", {"entity_id": "scene.evening"}, None) in fake_ha.calls
+
+
+async def test_live_sensor_turns_the_day_on_and_is_remembered(engine, fake_ha):
+    _occupancy_setup(engine, fake_ha, vacant=True)
+    _freeze(engine, datetime(2026, 9, 22, 9, 0, tzinfo=TZ))
+    await engine.tick()
+    assert engine.last_status.template_id == "vacant"
+    fake_ha.set("input_boolean.occ", "on")
+    await engine.tick()
+    st = engine.last_status
+    assert st.occupied is True and st.occupied_reason == "sensor"
+    assert st.template_id == "standard_day" and st.chapter["name"] == "Daytime"
+    # The sensor dropping later in the day does not flip the day back to vacant.
+    fake_ha.set("input_boolean.occ", "off")
+    _freeze(engine, datetime(2026, 9, 22, 15, 0, tzinfo=TZ))
+    await engine.tick()
+    assert engine.last_status.occupied is True and engine.last_status.template_id == "standard_day"
+    # ...and the next morning the previous day still counts as occupied for carry-over purposes.
+    views = await engine.day_views(datetime(2026, 9, 22).date(), datetime(2026, 9, 23).date())
+    assert views[0].occupied_reason == "sensor" and views[1].occupied is False
+
+
+async def test_forced_occupied_overrides_sensor(engine, fake_ha):
+    _occupancy_setup(engine, fake_ha, vacant=True)
+    engine.set_occupied(datetime(2026, 9, 22).date(), True)
+    _freeze(engine, datetime(2026, 9, 22, 9, 0, tzinfo=TZ))
+    await engine.tick()
+    st = engine.last_status
+    assert st.occupied_reason == "forced" and st.template_id == "standard_day"
+    engine.set_occupied(datetime(2026, 9, 22).date(), None)
+    await engine.tick()
+    assert engine.last_status.template_id == "vacant"
+
+
+async def test_no_evidence_sources_means_always_occupied(engine, fake_ha):
+    _configure(engine, fake_ha)  # no calendars, no occupied entity
+    _freeze(engine, datetime(2026, 9, 22, 9, 0, tzinfo=TZ))
+    await engine.tick()
+    assert engine.last_status.occupied is True and engine.last_status.occupied_reason == "always"
+    assert engine.last_status.chapter["name"] == "Daytime"
+
+
+async def test_detach_day_then_refine_and_copy(engine, fake_ha):
+    from cadence.engine.engine import KIND_PLAN, KIND_TEMPLATE
+    from cadence.models import ChapterOverride, ChapterStart, DayPlan, Template
+
+    _occupancy_setup(engine, fake_ha, vacant=True)
+    day = datetime(2026, 9, 22).date()
+    tmpl = Template(**engine.store.get(KIND_TEMPLATE, "standard_day"))
+    n = len(tmpl.chapters)
+    # A tweak made while still on the template is folded into the detached copy.
+    engine.store.put(
+        KIND_PLAN,
+        "2026-09-22",
+        DayPlan(
+            date="2026-09-22",
+            chapter_overrides=[ChapterOverride(chapter_id="daytime_am", start=ChapterStart(kind="clock", time="08:00"), variant_key="cloudy")],
+        ).model_dump(),
+    )
+
+    plan = engine.detach_day(day)
+    assert plan.detached and len(plan.chapters) == n
+    assert plan.occupied is True  # detaching a vacant day forces it on
+    own = next(c for c in plan.chapters if c.id == "daytime_am")
+    assert own.start.time == "08:00"
+    assert [o.variant_key for o in plan.chapter_overrides] == ["cloudy"]
+    assert engine.detach_day(day).chapters == plan.chapters  # idempotent
+
+    # Refine the day: move Daytime to 07:45. The template itself is untouched.
+    own.start = ChapterStart(kind="clock", time="07:45")
+    engine.store.put(KIND_PLAN, "2026-09-22", plan.model_dump())
+    _freeze(engine, datetime(2026, 9, 22, 7, 50, tzinfo=TZ))
+    await engine.tick()
+    st = engine.last_status
+    assert st.chapter["name"] == "Daytime" and st.variant["key"] == "cloudy"
+    assert all(r.source == "own" for r in st.timeline)
+    assert Template(**engine.store.get(KIND_TEMPLATE, "standard_day")).chapters == tmpl.chapters
+
+    # Paste onto two other days: they get their own copies and are forced occupied.
+    out = engine.copy_day(day, [datetime(2026, 9, 25).date(), datetime(2026, 9, 26).date(), day])
+    assert [p.date for p in out] == ["2026-09-25", "2026-09-26"]
+    views = await engine.day_views(datetime(2026, 9, 25).date(), datetime(2026, 9, 26).date())
+    for v in views:
+        assert v.detached and v.occupied_reason == "forced" and v.template_kind == "own"
+        assert next(r for r in v.chapters if r.chapter_id == "daytime_am").start.endswith("07:45:00-07:00")
+
+    # Reset: back to the template, occupancy flag kept.
+    plan = engine.reset_day(day)
+    assert plan is not None and plan.chapters is None and plan.occupied is True
+    await engine.tick()
+    assert engine.last_status.template_id == "standard_day" and engine.last_status.chapter["name"] == "Breakfast"

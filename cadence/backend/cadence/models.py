@@ -203,11 +203,18 @@ class DayPlan(BaseModel):
     date: str  # YYYY-MM-DD
     template_id: str | None = None
     chapter_overrides: list[ChapterOverride] = Field(default_factory=list)
-    extra_chapters: list[Chapter] = Field(default_factory=list)  # chapters that exist on this date only
+    extra_chapters: list[Chapter] = Field(default_factory=list)  # chapters added to a template day (legacy; new edits detach the day)
+    # The day's own chapters. When set the day is "detached": it no longer follows a template, and these
+    # chapters (plus chapter_overrides) are everything that runs. Never referenced elsewhere; copy/paste only.
+    chapters: list[Chapter] | None = None
     auto: Literal["default", "on", "off", "windows"] = "default"
     auto_windows: list[TimeWindow] = Field(default_factory=list)
-    occupied: bool | None = None  # manual occupancy flag; None -> inferred from calendar
+    occupied: bool | None = None  # True = forced occupied (the + button); None = from calendar / sensor
     notes: str = ""
+
+    @property
+    def detached(self) -> bool:
+        return self.chapters is not None
 
     @field_validator("date")
     @classmethod
@@ -250,7 +257,8 @@ class ZoneGlow(BaseModel):
 
 
 class Settings(BaseModel):
-    default_template_id: str | None = None
+    default_template_id: str | None = None  # runs on occupied (guest) days
+    vacant_template_id: str | None = None  # runs on days with no evidence of guests; None -> nothing runs
     # Auto-mode gating
     auto_source: Literal["either", "schedule", "entity", "always"] = "either"
     auto_schedule: WeeklySchedule = Field(default_factory=WeeklySchedule)
@@ -281,6 +289,11 @@ class Settings(BaseModel):
 # ----------------------------------------------------------------------------- runtime views
 
 
+# Why a day counts as occupied: forced by the + button, a matching calendar event, the live occupied
+# sensor (today, or remembered from an earlier day), "always" when no evidence source is configured.
+OccupiedReason = Literal["forced", "forced_off", "calendar", "sensor", "always", "none"]
+
+
 class ResolvedChapter(BaseModel):
     chapter_id: str
     name: str
@@ -294,7 +307,7 @@ class ResolvedChapter(BaseModel):
     forced_variant: str | None = None
     enabled: bool = True
     note: str = ""
-    source: Literal["template", "day"] = "template"
+    source: Literal["template", "day", "own"] = "template"  # own = the day's detached chapters
     music: list[dict] = Field(default_factory=list)  # representative music actions, for the timeline strip
     hold: dict | None = None  # {entity_id, while_state, latest} when the chapter can hold the following ones
     held_by: str | None = None  # name of the chapter currently holding this one back (today only)
@@ -319,6 +332,9 @@ class DayView(BaseModel):
     auto_windows: list[TimeWindow]
     auto_mode: str
     occupied: bool | None
+    occupied_reason: OccupiedReason = "none"
+    detached: bool = False  # the day runs its own chapters instead of a template
+    template_kind: Literal["default", "vacant", "custom", "own", "none"] = "none"
     events: list[dict] = Field(default_factory=list)
     sunrise: str | None = None
     sunset: str | None = None
@@ -351,6 +367,7 @@ class EngineStatus(BaseModel):
     motion: dict
     asleep: bool | None
     occupied: bool | None
+    occupied_reason: OccupiedReason = "none"
     hold: ManualHold
     sun: dict
     zones: dict[str, float] = Field(default_factory=dict)  # zone id -> 0..100

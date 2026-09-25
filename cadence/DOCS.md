@@ -91,21 +91,38 @@ occupied/vacant, asleep/awake.
 If **Switch variant mid-chapter** is on, a change of sky or motion swaps the variant while the
 chapter runs (playlist starts are skipped on swaps unless you turn that off).
 
-### Templates and day plans
+### Templates, occupied days and refining a day
 
-One **default template** describes the ordinary day. In the **Planner** each day is a row; click
-a day to give it another template, move chapter starts, force a variant, set auto mode for that
-date, mark it occupied, and leave a note. Days with calendar events matching your keywords are
-marked occupied automatically.
+Two templates matter: the **guest-day template** (Settings → Story → Guest-day template) and an
+optional **vacant-day template**. Which one a day follows depends on whether there is evidence of
+guests:
+
+- a calendar event matching your keywords (Settings → Calendar),
+- the **occupied sensor** being on (today; the date is then remembered as occupied), or
+- the day being **forced on** with the **+** button in the planner.
+
+With no calendar and no occupied sensor configured, every day counts as occupied. Days without
+evidence run the vacant-day template, or nothing at all if none is chosen, and are drawn faint in
+the planner. Forced days show a ↺ button to return to automatic.
+
+The **Planner** is a week: seven columns, hours down the page, ‹ Today › to move between weeks and
+a calendar icon that opens a month grid with occupancy dots for jumping to a date. Clicking a day
+opens a slide-over pane with the day's occupancy, template, auto mode, notes and chapters.
+
+Refining a day never edits or creates a template. The first change to any chapter (drag its top
+edge, right-click → variant / move / add / remove, or **Customise** in the pane) gives that date its
+**own copy** of the chapters it was following. From then on that date runs exactly those chapters;
+later template edits do not touch it, and nothing else can reference them. **Reset** in the pane
+puts the day back on its template. To reuse a refined day, **copy** it (right-click the column or
+the pane's Copy day button), tick the target days in the week header or navigate with ‹ ›, then
+**Paste**. Pasted days get their own copy of the chapters and are forced occupied.
 
 ### Right-click in the Planner
 
-Drag a chapter's left edge to move its start for that day (5-minute snapping); the chapter before it
-stretches or shrinks. Right-click a day's track for a context menu. On empty space (the hour band above the chapters)
-it offers **Add chapter here (this day only)**. On a chapter it offers: edit for this day, force a
-variant, move the start to the clicked time, duplicate or add a new chapter at that time, apply now
-(today), skip for this day, or remove (day-only chapters). Day-only chapters live on that date's
-plan and are drawn with a double border and a ◆ marker.
+Drag a chapter's top edge to move its start (5-minute snapping). Right-click a chapter for: edit,
+force a variant for that day, move the start to the clicked time, duplicate or add a new chapter
+there, apply now (today), remove from this day. Right-click empty space for: force occupied, add a
+chapter, open the day, copy day, paste, reset to template, recompute (today).
 
 ### Music
 
@@ -173,8 +190,8 @@ by `#/tablet`, or set Fully Kiosk's start URL to it.
 ## Calendar
 
 Add the **Google Calendar** integration in Home Assistant, then pick its `calendar.*` entities in
-Cadence's **Settings → Calendar**. Events appear on the planner rows; titles containing any of the
-keywords mark the day occupied.
+Cadence's **Settings → Calendar**. Events appear in the planner columns and pane; titles containing
+any of the keywords mark the day occupied, which selects the guest-day template.
 
 ## Local development
 

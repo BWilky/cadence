@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { api, fmtTime, type useLive } from "../api";
 import { Track } from "../components/Track";
+
+const OCC_REASON: Record<string, string> = { forced: "forced on", forced_off: "forced off", calendar: "calendar", sensor: "sensor", always: "no evidence sources configured" };
 import { Pill, SKY_LABEL, toast } from "../components/ui";
 import type { ResolvedChapter } from "../types";
 
@@ -164,7 +166,10 @@ export function Now({ live }: { live: Live }) {
               <span className="opacity-50">Asleep</span>
               <span>{st.asleep == null ? "no sensor" : st.asleep ? "Yes" : "No"}</span>
               <span className="opacity-50">Occupied</span>
-              <span>{st.occupied == null ? "unknown" : st.occupied ? "Yes" : "No"}</span>
+              <span>
+                {st.occupied == null ? "unknown" : st.occupied ? "Yes" : "No"}
+                {st.occupied_reason && st.occupied_reason !== "none" ? <span className="ml-1 font-mono text-[11px] opacity-50">{OCC_REASON[st.occupied_reason] ?? st.occupied_reason}</span> : null}
+              </span>
             </div>
           </div>
         </div>

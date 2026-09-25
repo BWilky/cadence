@@ -137,11 +137,14 @@ export interface DayPlan {
   template_id?: string | null;
   chapter_overrides: ChapterOverride[];
   extra_chapters: Chapter[];
+  chapters?: Chapter[] | null; // set = the day runs its own chapters (detached from any template)
   auto: "default" | "on" | "off" | "windows";
   auto_windows: TimeWindow[];
-  occupied?: boolean | null;
+  occupied?: boolean | null; // true = forced occupied; null = automatic
   notes: string;
 }
+
+export type OccupiedReason = "forced" | "forced_off" | "calendar" | "sensor" | "always" | "none";
 
 export interface SkyConfig {
   lux_entity?: string | null;
@@ -170,6 +173,7 @@ export interface ZoneGlow {
 
 export interface Settings {
   default_template_id?: string | null;
+  vacant_template_id?: string | null;
   auto_source: "either" | "schedule" | "entity" | "always";
   auto_schedule: { windows: Record<string, TimeWindow[]> };
   auto_entity?: string | null;
@@ -203,7 +207,7 @@ export interface ResolvedChapter {
   forced_variant?: string | null;
   enabled: boolean;
   note: string;
-  source: "template" | "day";
+  source: "template" | "day" | "own";
   music: (MusicAction & { scene?: string })[];
   hold?: ChapterHold | null;
   held_by?: string | null;
@@ -245,6 +249,9 @@ export interface DayView {
   auto_windows: TimeWindow[];
   auto_mode: string;
   occupied: boolean | null;
+  occupied_reason: OccupiedReason;
+  detached: boolean;
+  template_kind: "default" | "vacant" | "custom" | "own" | "none";
   events: CalendarEvent[];
   sunrise: string | null;
   sunset: string | null;
@@ -277,6 +284,7 @@ export interface EngineStatus {
   motion: { active: boolean | null; entity: string | null; last_on: string | null };
   asleep: boolean | null;
   occupied: boolean | null;
+  occupied_reason?: OccupiedReason;
   hold: ManualHold;
   sun: { sunrise: string | null; sunset: string | null; elevation: number | null };
   zones: Record<string, number>;

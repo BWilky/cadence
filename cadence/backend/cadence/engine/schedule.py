@@ -72,8 +72,13 @@ def resolve_day(
     tz: ZoneInfo,
     sun: Sun | None,
 ) -> list[ResolvedChapter]:
-    base = list(template.chapters) if template else []
-    extras = list(plan.extra_chapters) if plan else []
+    detached = plan is not None and plan.chapters is not None
+    if detached:
+        base = list(plan.chapters or [])
+        extras: list[Chapter] = []
+    else:
+        base = list(template.chapters) if template else []
+        extras = list(plan.extra_chapters) if plan else []
     if not base and not extras:
         return []
     extra_ids = {c.id for c in extras}
@@ -95,7 +100,7 @@ def resolve_day(
                 forced_variant=forced,
                 enabled=ch.enabled,
                 note=ch.note,
-                source="day" if ch.id in extra_ids else "template",
+                source="own" if detached else ("day" if ch.id in extra_ids else "template"),
                 hold=ch.hold.model_dump() if ch.hold else None,
                 start_entity=ch.start.entity_id if ch.start.kind == "sensor" else None,
             )

@@ -26,6 +26,22 @@ class SeedBody(BaseModel):
     replace: bool = False
 
 
+class OccupiedBody(BaseModel):
+    occupied: bool | None = None  # True = force on, None = automatic
+
+
+class CopyBody(BaseModel):
+    source: str
+    targets: list[str]
+
+
+def _day(s: str) -> date:
+    try:
+        return date.fromisoformat(s)
+    except ValueError as exc:
+        raise HTTPException(400, "expected YYYY-MM-DD") from exc
+
+
 def build_router(engine: Engine) -> APIRouter:
     r = APIRouter(prefix="/api", tags=["api"])
     store = engine.store
@@ -129,6 +145,26 @@ def build_router(engine: Engine) -> APIRouter:
         ok = store.delete(KIND_PLAN, day)
         engine.wake()
         return {"deleted": ok}
+
+    @r.post("/plans/{day}/detach")
+    async def detach_plan(day: str) -> DayPlan:
+        """Snapshot the chapters this day follows into the day itself so they can be refined."""
+        return engine.detach_day(_day(day))
+
+    @r.post("/plans/{day}/reset")
+    async def reset_plan(day: str) -> DayPlan | None:
+        return engine.reset_day(_day(day))
+
+    @r.post("/plans/{day}/occupied")
+    async def set_occupied(day: str, body: OccupiedBody) -> DayPlan | None:
+        return engine.set_occupied(_day(day), body.occupied)
+
+    @r.post("/plans/copy")
+    async def copy_plan(body: CopyBody) -> list[DayPlan]:
+        targets = [_day(t) for t in body.targets]
+        if len(targets) > 62:
+            raise HTTPException(400, "too many targets (max 62)")
+        return engine.copy_day(_day(body.source), targets)
 
     @r.get("/days")
     async def days(start: str = Query(...), end: str = Query(...)) -> list[dict]:

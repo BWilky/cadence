@@ -76,6 +76,7 @@ class Engine:
         self.auto_override_date: str | None = rt.get("auto_override_date")
         self.triggered: dict[str, str] = rt.get("triggered", {})  # "date|chapter_id" -> ISO start
         self.released: dict[str, str] = rt.get("released", {})  # "date|chapter_id" -> ISO time a chapter hold let go
+        self.sensor_days: dict[str, bool] = rt.get("sensor_days", {})  # dates the live occupied sensor switched on
         self.active_hold: dict | None = None
         self.motion_last_on: dict[str, float] = {}
         self.expected_leds: dict[str, tuple[str, float]] = {}  # led -> (state, grace_until_ts)
@@ -112,6 +113,7 @@ class Engine:
                 "auto_override_date": self.auto_override_date,
                 "triggered": self.triggered,
                 "released": self.released,
+                "sensor_days": self.sensor_days,
             },
         )
 
@@ -189,9 +191,11 @@ class Engine:
         return self._chapters_for(self.now().date())
 
     def _chapters_for(self, day: date) -> list[Chapter]:
-        """Template chapters plus any chapters that exist on this date only."""
-        t = self._template_for(day)
+        """A detached day's own chapters, else template chapters plus any added to this date only."""
         p = self.plan(day)
+        if p and p.chapters is not None:
+            return list(p.chapters)
+        t = self._template_for(day)
         return list(t.chapters if t else []) + list(p.extra_chapters if p else [])
 
     @staticmethod
@@ -289,10 +293,23 @@ class Engine:
         self.wake()
 
     # ------------------------------------------------------------------ helpers
+    def _template_kind(self, day: date, s: Settings | None = None, plan: DayPlan | None = None) -> tuple[str, str | None]:
+        """Which template a day follows: ("own", None) for a detached day, ("custom", id) for an explicit
+        per-day choice, ("default", id) on occupied days, ("vacant", id) otherwise, ("none", None) if nothing runs."""
+        s = s or self.settings()
+        p = plan if plan is not None else self.plan(day)
+        if p and p.chapters is not None:
+            return "own", None
+        if p and p.template_id:
+            return "custom", p.template_id
+        occupied, _ = self._occupancy(day, s, p)
+        tid = s.default_template_id if occupied else s.vacant_template_id
+        if not tid:
+            return "none", None
+        return ("default" if occupied else "vacant"), tid
+
     def _template_for(self, day: date) -> Template | None:
-        s = self.settings()
-        p = self.plan(day)
-        tid = (p.template_id if p and p.template_id else None) or s.default_template_id
+        _, tid = self._template_kind(day)
         if not tid:
             return None
         raw = self.store.get(KIND_TEMPLATE, tid)
@@ -344,19 +361,42 @@ class Engine:
             return True, eid
         return (False if on is not None else None), eid
 
-    def _occupied(self, day: date, s: Settings, plan: DayPlan | None) -> bool | None:
+    def _occupied(self, day: date, s: Settings, plan: DayPlan | None) -> bool:
+        return self._occupancy(day, s, plan)[0]
+
+    def _occupancy(self, day: date, s: Settings, plan: DayPlan | None) -> tuple[bool, str]:
+        """Is there evidence of guests on this day, and where did it come from?
+        Forced (+ button) > calendar keywords > live occupied sensor (today; remembered afterwards).
+        With no calendar and no sensor configured every day counts as occupied."""
         if plan and plan.occupied is not None:
-            return plan.occupied
-        ev = self._cached_events(day)
-        if ev is not None:
+            return (True, "forced") if plan.occupied else (False, "forced_off")
+        if not s.calendars and not s.occupied_entity:
+            return True, "always"
+        ev = self._cached_events(day) if s.calendars else None
+        if ev:
             kws = [k.lower() for k in s.calendar_keywords if k.strip()]
-            if kws:
-                return any(any(k in (e.get("summary") or "").lower() for k in kws) for e in ev)
-            if ev:
-                return True
-        if s.occupied_entity and day == self.now().date():
-            return self.ha.is_on(s.occupied_entity)
-        return False if ev is not None else None
+            if not kws or any(any(k in (e.get("summary") or "").lower() for k in kws) for e in ev):
+                return True, "calendar"
+        if s.occupied_entity:
+            key = day.isoformat()
+            if day == self.now().date() and self.ha.is_on(s.occupied_entity):
+                if not self.sensor_days.get(key):
+                    self.sensor_days = {k: v for k, v in self.sensor_days.items() if k >= add_days(day, -14).isoformat()}
+                    self.sensor_days[key] = True
+                    self._persist_runtime()
+                return True, "sensor"
+            if self.sensor_days.get(key):
+                return True, "sensor"
+        return False, "none"
+
+    async def _refresh_calendar(self, day: date) -> None:
+        """Keep today's neighbourhood of calendar events fresh so occupancy works without the planner open."""
+        s = self.settings()
+        if not s.calendars or not self.ha.connected.is_set():
+            return
+        if all(self._cached_events(add_days(day, n)) is not None for n in (-1, 0, 1)):
+            return
+        await self.fetch_events(add_days(day, -1), add_days(day, 1))
 
     def _cached_events(self, day: date) -> list[dict] | None:
         c = self.calendar_cache.get(day.isoformat())
@@ -717,6 +757,7 @@ class Engine:
         self.sky.cfg = s.sky
         now = self.now()
         day = now.date()
+        await self._refresh_calendar(day)
         tmpl, plan, chapters = self._resolve(day, s, with_music=True)
 
         # Senses
@@ -724,7 +765,7 @@ class Engine:
         el = self._elevation()
         self.sky_reading = self.sky.classify(now, lux, lux_age, el)
         asleep = self.ha.is_on(s.asleep_entity) if s.asleep_entity else None
-        occupied = self._occupied(day, s, plan)
+        occupied, occupied_reason = self._occupancy(day, s, plan)
 
         # Conditional chapters may start right now
         self._arm_conditional(day, chapters, tmpl, s, now, asleep)
@@ -793,6 +834,7 @@ class Engine:
         self.last_status = self._build_status(
             now, s, day, tmpl, current, chapter_obj, variant, nxt, chapters, motion, motion_entity, asleep, occupied, auto_active, auto_reason
         )
+        self.last_status.occupied_reason = occupied_reason  # type: ignore[assignment]
         self.last_status.carry_over = carry_over
         self.last_status.chapter_hold = self.active_hold
         self.emit({"type": "status", "status": self.last_status.model_dump()})
@@ -1043,6 +1085,109 @@ class Engine:
             last_apply=self.applied,
         )
 
+    # ------------------------------------------------------------------ day plan operations
+    def _snapshot_chapters(self, day: date, plan: DayPlan | None) -> tuple[list[Chapter], list]:
+        """The chapters a day effectively runs, as standalone copies, with start/enabled overrides folded in.
+        Variant overrides are returned separately (a Chapter has no forced-variant field)."""
+        chapters = [c.model_copy(deep=True) for c in self._chapters_for(day)]
+        overrides = list(plan.chapter_overrides) if plan else []
+        by_id = {o.chapter_id: o for o in overrides}
+        for c in chapters:
+            o = by_id.get(c.id)
+            if not o:
+                continue
+            if o.start is not None:
+                c.start = o.start.model_copy(deep=True)
+            if o.enabled is not None:
+                c.enabled = o.enabled
+        ids = {c.id for c in chapters}
+        keep = [o.model_copy(update={"start": None, "enabled": None}) for o in overrides if o.variant_key and o.chapter_id in ids]
+        return chapters, keep
+
+    def detach_day(self, day: date, *, force_occupied: bool = True) -> DayPlan:
+        """Give a day its own copy of the chapters it currently follows. Idempotent. The copy belongs to
+        this date only: it is not a template and nothing else can reference it."""
+        plan = self.plan(day) or DayPlan(date=day.isoformat())
+        if plan.chapters is None:
+            s = self.settings()
+            if force_occupied and not self._occupancy(day, s, plan)[0]:
+                plan.occupied = True  # editing a vacant day is the same as pressing +: copy the guest template
+                self.store.put(KIND_PLAN, plan.date, plan.model_dump())
+            chapters, keep = self._snapshot_chapters(day, plan)
+            plan.chapters = chapters
+            plan.chapter_overrides = keep
+            plan.extra_chapters = []
+            self.store.put(KIND_PLAN, plan.date, plan.model_dump())
+            self._log("info", "plan", f"{plan.date} now runs its own chapters", {"date": plan.date, "chapters": len(chapters)})
+            self.wake()
+        return plan
+
+    def reset_day(self, day: date) -> DayPlan | None:
+        """Drop a day's own chapters and tweaks so it follows its template again. Keeps occupancy, auto, notes."""
+        plan = self.plan(day)
+        if not plan:
+            return None
+        plan.chapters = None
+        plan.extra_chapters = []
+        plan.chapter_overrides = []
+        if self._plan_is_empty(plan):
+            self.store.delete(KIND_PLAN, plan.date)
+            plan = None
+        else:
+            self.store.put(KIND_PLAN, plan.date, plan.model_dump())
+        self._log("info", "plan", f"{day.isoformat()} back on its template", {"date": day.isoformat()})
+        self.wake()
+        return plan
+
+    def set_occupied(self, day: date, value: bool | None) -> DayPlan | None:
+        plan = self.plan(day) or DayPlan(date=day.isoformat())
+        plan.occupied = value
+        if self._plan_is_empty(plan):
+            self.store.delete(KIND_PLAN, plan.date)
+            plan = None
+        else:
+            self.store.put(KIND_PLAN, plan.date, plan.model_dump())
+        how = "forced on" if value else "forced off" if value is False else "automatic"
+        self._log("info", "plan", f"{day.isoformat()} occupancy: {how}", {"date": day.isoformat()})
+        self.wake()
+        return plan
+
+    def copy_day(self, source: date, targets: list[date]) -> list[DayPlan]:
+        """Paste one day's chapters (and its auto-mode choice) onto other days. Targets become detached
+        and forced occupied; their notes and any explicit template choice are left alone."""
+        src_plan = self.plan(source)
+        chapters, keep = self._snapshot_chapters(source, src_plan)
+        out: list[DayPlan] = []
+        for t in targets:
+            if t == source:
+                continue
+            plan = self.plan(t) or DayPlan(date=t.isoformat())
+            plan.chapters = [c.model_copy(deep=True) for c in chapters]
+            plan.chapter_overrides = [o.model_copy() for o in keep]
+            plan.extra_chapters = []
+            plan.occupied = True
+            if src_plan:
+                plan.auto = src_plan.auto
+                plan.auto_windows = [w.model_copy() for w in src_plan.auto_windows]
+            self.store.put(KIND_PLAN, plan.date, plan.model_dump())
+            out.append(plan)
+        detail = {"source": source.isoformat(), "targets": [p.date for p in out]}
+        self._log("info", "plan", f"Copied {source.isoformat()} onto {len(out)} day(s)", detail)
+        self.wake()
+        return out
+
+    @staticmethod
+    def _plan_is_empty(p: DayPlan) -> bool:
+        return (
+            p.chapters is None
+            and not p.template_id
+            and not p.chapter_overrides
+            and not p.extra_chapters
+            and p.auto == "default"
+            and p.occupied is None
+            and not p.notes
+        )
+
     # ------------------------------------------------------------------ planner support
     async def day_views(self, start: date, end: date) -> list[DayView]:
         s = self.settings()
@@ -1065,6 +1210,8 @@ class Engine:
                 first = min((datetime.fromisoformat(r.start or r.nominal) for r in chapters if r.enabled), default=None)
                 if first is None or first > at(d, "00:00", self.tz):
                     carry = CarryOver(chapter_id=yl.chapter_id, name=yl.name, color=yl.color, until=first.isoformat() if first else None)
+            occ, why = self._occupancy(d, s, plan)
+            kind, _ = self._template_kind(d, s, plan)
             out.append(
                 DayView(
                     date=d.isoformat(),
@@ -1074,7 +1221,10 @@ class Engine:
                     chapters=chapters,
                     auto_windows=wins,
                     auto_mode=mode,
-                    occupied=self._occupied(d, s, plan),
+                    occupied=occ,
+                    occupied_reason=why,  # type: ignore[arg-type]
+                    detached=bool(plan and plan.chapters is not None),
+                    template_kind=kind,  # type: ignore[arg-type]
                     events=events.get(d.isoformat(), []),
                     sunrise=sr.isoformat() if sr else None,
                     sunset=ss.isoformat() if ss else None,

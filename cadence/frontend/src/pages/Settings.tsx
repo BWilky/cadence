@@ -121,7 +121,7 @@ export function SettingsPage({ live }: { live: ReturnType<typeof useLive> }) {
           <Field label="Site name (tablet title)">
             <input type="text" className="input input-sm w-full" value={s.site_name} onChange={(e) => setS({ ...s, site_name: e.target.value })} />
           </Field>
-          <Field label="Default template">
+          <Field label="Guest-day template" help="Runs on days with evidence of guests: a matching calendar event, the occupied sensor, or the + button in the planner.">
             <select className="select select-sm w-full" value={s.default_template_id ?? ""} onChange={(e) => setS({ ...s, default_template_id: e.target.value || null })}>
               <option value="">— none —</option>
               {templates.map((t) => (
@@ -131,7 +131,18 @@ export function SettingsPage({ live }: { live: ReturnType<typeof useLive> }) {
               ))}
             </select>
           </Field>
+          <Field label="Vacant-day template" help="Runs on days with no evidence of guests. Leave empty and Cadence does nothing on those days.">
+            <select className="select select-sm w-full" value={s.vacant_template_id ?? ""} onChange={(e) => setS({ ...s, vacant_template_id: e.target.value || null })}>
+              <option value="">— nothing runs —</option>
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </Field>
         </div>
+        <p className="text-xs opacity-60">A day counts as occupied when a calendar event matches your keywords, when the occupied sensor is on (today; remembered for that date afterwards), or when it is forced on in the planner. With no calendar and no sensor configured, every day is treated as occupied.</p>
       </Section>
 
       <Section title="Auto mode" intro='Cadence only drives the building while auto mode is active. Combine the weekly schedule with an external Home Assistant entity (for example a template binary_sensor for "building occupied").'>
