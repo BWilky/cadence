@@ -440,16 +440,25 @@ body {
   padding-bottom: 3px;
 }
 .col .block .grip .pill {
-  width: 26px;
-  height: 4px;
+  width: 22px;
+  height: 3px;
   border-radius: 999px;
-  background: color-mix(in oklab, var(--color-base-content) 30%, var(--color-base-100));
+  background: color-mix(in oklab, var(--c-line) 35%, transparent);
   opacity: 0;
   transition: opacity 0.12s;
 }
-.col .block:hover .grip .pill,
-.col.dragging .grip .pill {
+.col .block:hover .grip .pill {
   opacity: 1;
+}
+.col .block .grip:hover .pill {
+  background: color-mix(in oklab, var(--c-line) 60%, transparent);
+}
+.col.dragging .block .grip .pill {
+  opacity: 0;
+}
+.col.dragging .block .grip.active .pill {
+  opacity: 1;
+  background: color-mix(in oklab, var(--c-line) 60%, transparent);
 }
 .col.dragging,
 .col.dragging .block {

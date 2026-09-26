@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.3
+
+- Fainter drag handles on chapter tiles; only the handle in use shows while dragging.
+
 ## 0.2.2
 
 - Week grid: a small gap between chapter tiles, and a pill handle on both edges. The top handle

@@ -150,7 +150,7 @@ export function DayColumn(props: {
           >
             {props.onMoveStart && c.kind === "clock" ? (
               <div
-                className="grip"
+                className={"grip" + (drag?.id === c.chapter_id ? " active" : "")}
                 title="Drag to change the start time"
                 onPointerDown={(ev) => {
                   ev.preventDefault();
@@ -173,7 +173,7 @@ export function DayColumn(props: {
             {c.hold ? <div className="holdmark" /> : null}
             {props.onMoveStart && next && next.kind === "clock" ? (
               <div
-                className="grip bottom"
+                className={"grip bottom" + (drag?.id === next.chapter_id ? " active" : "")}
                 title={`Drag to change when ${next.name} starts`}
                 onPointerDown={(ev) => {
                   ev.preventDefault();
