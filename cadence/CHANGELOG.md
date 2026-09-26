@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1
+
+- Cleaner chapter tiles in the week grid: coloured top bar, time in the chapter colour, pill drag
+  handle on hover. Music is no longer drawn on the grid; the day pane lists each chapter's fade
+  and music actions instead, grouped across zones.
+
 ## 0.2.0
 
 - Planner is now a week view: seven vertical day columns, hours down the page, week paging, a

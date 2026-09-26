@@ -3,6 +3,7 @@ import { addDays, api, describeStart, fmtTime, hhmm, todayISO, type useLive } fr
 import { ChapterEditor } from "../components/ChapterEditor";
 import { ContextMenu, type MenuItem, type MenuState } from "../components/ContextMenu";
 import { DayColumn } from "../components/DayColumn";
+import { musicSummary } from "../components/MusicRow";
 import { useSensorGroups } from "../components/SensorRef";
 import { WindowsEditor, defaultStart } from "../components/StartEditor";
 import type { TrackContext } from "../components/Track";
@@ -436,6 +437,30 @@ function dupChapter(p: DayPlan, c: ResolvedChapter, at: string): Chapter {
   return { ...base, id: "own_" + Date.now().toString(36), name: base.name + " (copy)", start: { ...defaultStart("clock"), time: at } };
 }
 
+/** Music and fade details for one resolved chapter, shown only in the pane (the grid stays clean). */
+function ChapterDetail({ res, fade }: { res: ResolvedChapter | undefined; fade: number }) {
+  const music = res?.music ?? [];
+  if (!music.length && !fade) return null;
+  // Group identical actions across zones: "mute · diningroom, foyer, lounge".
+  const groups = new Map<string, string[]>();
+  for (const m of music) {
+    const key = musicSummary(m);
+    const zone = (m.entity_id ?? "").replace(/^media_player\./, "").replace(/^bose_csp_/, "");
+    groups.set(key, [...(groups.get(key) ?? []), zone].filter(Boolean));
+  }
+  return (
+    <div className="mt-1 flex flex-col gap-0.5 pl-6 text-[11px] opacity-70">
+      {fade ? <div>fade {fade} min</div> : null}
+      {[...groups.entries()].map(([text, zones], i) => (
+        <div key={i} className="truncate">
+          <span className="opacity-70">♫</span> {text}
+          {zones.length ? <span className="font-mono opacity-60"> · {zones.join(", ")}</span> : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /** Slide-over pane for one day. */
 function DayPane(props: { view: DayView; templates: Template[]; scenes: CadenceScene[]; focusChapter: string | null; onClose: () => void; onSaved: () => void; onCopy: () => void }) {
   const { view } = props;
@@ -583,6 +608,11 @@ function DayPane(props: { view: DayView; templates: Template[]; scenes: CadenceS
                       </Confirm>
                     </span>
                   </div>
+                  {!isOpen ? (
+                    <div className="px-4 pb-2">
+                      <ChapterDetail res={res} fade={c.fade_minutes} />
+                    </div>
+                  ) : null}
                   <div className="collapse-content">
                     {isOpen ? (
                       <>
@@ -607,10 +637,13 @@ function DayPane(props: { view: DayView; templates: Template[]; scenes: CadenceS
           : (tmpl?.chapters ?? []).map((c) => {
               const res = resolved(c.id);
               return (
-                <div key={c.id} ref={props.focusChapter === c.id ? focusRef : undefined} className={"flex items-center gap-2 rounded-box border border-base-300 px-3 py-2 " + (c.enabled ? "" : "opacity-50")}>
-                  <span className="swatch" style={{ background: c.color ?? "#556" }} />
-                  <b className="text-sm">{c.name}</b>
-                  <span className="font-mono text-xs opacity-60">{res?.start ? fmtTime(res.start) : describeStart(c.start, groups)}</span>
+                <div key={c.id} ref={props.focusChapter === c.id ? focusRef : undefined} className={"rounded-box border border-base-300 px-3 py-2 " + (c.enabled ? "" : "opacity-50")}>
+                  <div className="flex items-center gap-2">
+                    <span className="swatch" style={{ background: c.color ?? "#556" }} />
+                    <b className="text-sm">{c.name}</b>
+                    <span className="font-mono text-xs opacity-60">{res?.start ? fmtTime(res.start) : describeStart(c.start, groups)}</span>
+                  </div>
+                  <ChapterDetail res={res} fade={c.fade_minutes} />
                 </div>
               );
             })}

@@ -1,57 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { hhmm, minutesOfDay } from "../api";
-import type { DayView, MusicAction, ResolvedChapter } from "../types";
+import type { DayView, ResolvedChapter } from "../types";
 import { chapterColor } from "./ui";
 import type { TrackContext } from "./Track";
-
-interface MusicPoint {
-  m: number;
-  level: number;
-}
-
-/** Same walk as the horizontal track: derive one "what the music is doing" envelope for the day. */
-function musicEnvelope(chapters: ResolvedChapter[], starts: number[]) {
-  let playing = false;
-  let level = 0;
-  let label: string | undefined;
-  const points: MusicPoint[] = [{ m: 0, level: 0 }];
-  const segments: { s: number; e: number; playing: boolean; label?: string }[] = [];
-  const cues: number[] = [];
-  const active = chapters.map((c, i) => ({ c, s: starts[i] })).filter((x) => x.c.enabled);
-  active.forEach((x, i) => {
-    const e = i + 1 < active.length ? active[i + 1].s : 1440;
-    const music: (MusicAction & { scene?: string })[] = x.c.music ?? [];
-    if (music.length) cues.push(x.s);
-    let fadeMin = 0;
-    const targets: number[] = [];
-    let muted = false;
-    for (const m of music) {
-      if (m.kind === "spotify_context" || m.kind === "play_playlist" || m.kind === "play") {
-        playing = true;
-        label = m.label ?? label;
-      } else if (m.kind === "pause" || m.kind === "stop") playing = false;
-      else if (m.kind === "volume_fade" || m.kind === "volume_set") {
-        targets.push(m.volume ?? 0);
-        if (m.kind === "volume_fade") fadeMin = Math.max(fadeMin, m.minutes ?? 0);
-        if (m.from_zero) points.push({ m: x.s, level: 0 });
-      } else if (m.kind === "mute") muted = true;
-      else if (m.kind === "unmute") muted = false;
-    }
-    if (targets.length) {
-      const target = targets.reduce((a, b) => a + b, 0) / targets.length;
-      points.push({ m: x.s, level });
-      level = target;
-      points.push({ m: Math.min(e, x.s + fadeMin), level });
-    } else if (muted) {
-      points.push({ m: x.s, level });
-      level = 0;
-      points.push({ m: x.s, level: 0 });
-    }
-    segments.push({ s: x.s, e, playing, label });
-  });
-  points.push({ m: 1440, level });
-  return { segments, points, cues };
-}
 
 /** One day as a vertical column: 00:00 at the top, 24:00 at the bottom. */
 export function DayColumn(props: {
@@ -100,8 +51,6 @@ export function DayColumn(props: {
   const nowMin = isToday && props.now ? minutesOfDay(props.now) : null;
   const sr = d.sunrise ? minutesOfDay(d.sunrise) : null;
   const ss = d.sunset ? minutesOfDay(d.sunset) : null;
-  const env = musicEnvelope(chapters, starts);
-  const hasMusic = env.cues.length > 0;
 
   const ctxFromEvent = (e: React.MouseEvent<HTMLElement>, chapter: ResolvedChapter | null) => {
     if (!props.onContext) return;
@@ -117,7 +66,7 @@ export function DayColumn(props: {
   const firstStart = enabledStarts.length ? Math.min(...enabledStarts) : 1440;
 
   return (
-    <div ref={hostRef} className={["col", tone, hasMusic ? "has-music" : "", drag ? "dragging" : "", props.className ?? ""].join(" ")} onContextMenu={(e) => ctxFromEvent(e, null)}>
+    <div ref={hostRef} className={["col", tone, drag ? "dragging" : "", props.className ?? ""].join(" ")} onContextMenu={(e) => ctxFromEvent(e, null)}>
       {Array.from({ length: 24 }, (_, h) => (
         <div key={h} className="hline" style={{ top: pct(h * 60) + "%" }} />
       ))}
@@ -177,10 +126,11 @@ export function DayColumn(props: {
         const past = nowMin != null && e < nowMin;
         const held = !!c.held_by;
         const cls = ["block", c.chapter_id === props.currentId ? "current" : "", c.pending_condition ? "cond" : "", held ? "held" : "", past ? "dim" : ""].join(" ");
-        const fadeH = c.fade_minutes > 0 ? Math.min(100, (c.fade_minutes / Math.max(1, e - s)) * 100) : 0;
         const startText = held ? `waiting — held by ${c.held_by}` : c.start ? hhmm(s) : c.start_entity ? `waiting for ${c.start_entity} (hard start ${hhmm(s)})` : "waiting (" + hhmm(s) + ")";
         const holdText = c.hold ? `\nHolds while ${c.hold.label ?? c.hold.entity_id} is ${c.hold.while_state}${c.hold.latest ? ` (until ${c.hold.latest})` : ""}` : "";
-        const tall = e - s >= 45;
+        const tall = e - s >= 60;
+        const hasMusic = (c.music ?? []).length > 0;
+        const timeText = drag?.id === c.chapter_id ? hhmm(drag.minute) : c.pending_condition ? "~" + hhmm(s) : hhmm(s);
         return (
           <div
             key={c.chapter_id + i}
@@ -200,39 +150,22 @@ export function DayColumn(props: {
                   setDrag({ id: c.chapter_id, minute: s });
                 }}
                 onClick={(ev) => ev.stopPropagation()}
-              />
+              >
+                <span className="pill" />
+              </div>
             ) : null}
-            {fadeH > 0 ? <div className="fade" style={{ height: fadeH + "%" }} /> : null}
-            {c.hold ? <div className="holdmark" /> : null}
             <div className="t">
-              {drag?.id === c.chapter_id ? hhmm(drag.minute) : c.start ? hhmm(s) : c.pending_condition ? "~" + hhmm(s) : hhmm(s)}
-              {held ? " ⏸" : ""}
-              {!tall ? <span className="n"> · {c.name}</span> : null}
+              <span>{timeText}</span>
+              {held ? <span title={`held by ${c.held_by}`}>⏸</span> : null}
+              {hasMusic ? <span className="mu" title="Music on this chapter">♫</span> : null}
+              {!tall ? <span className="n"> {c.name}</span> : null}
             </div>
             {tall ? <div className="n">{c.name}</div> : null}
             {tall && v ? <div className="v">{v}</div> : null}
+            {c.hold ? <div className="holdmark" /> : null}
           </div>
         );
       })}
-      {hasMusic ? (
-        <div className="music" aria-hidden="true">
-          {env.segments
-            .filter((sg) => sg.playing)
-            .map((sg, i) => (
-              <div key={i} className="seg" style={{ top: pct(sg.s) + "%", height: Math.max(0.3, pct(sg.e - sg.s)) + "%" }} title={sg.label ? `♫ ${sg.label}` : "♫ playing"} />
-            ))}
-          <svg className="env" viewBox="0 0 100 1440" preserveAspectRatio="none">
-            {(() => {
-              const peak = Math.max(0.05, ...env.points.map((p) => p.level));
-              const pts = env.points.map((p) => `${8 + (p.level / peak) * 84},${p.m}`).join(" ");
-              return <polyline points={pts} />;
-            })()}
-          </svg>
-          {env.cues.map((m, i) => (
-            <span key={i} className="cue" style={{ top: pct(m) + "%" }} />
-          ))}
-        </div>
-      ) : null}
       {nowMin != null ? <div className="playhead" style={{ top: pct(nowMin) + "%" }} /> : null}
     </div>
   );
