@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.2
+
+- Week grid: a small gap between chapter tiles, and a pill handle on both edges. The top handle
+  moves the chapter's start; the bottom handle moves the next chapter's start (the finish).
+
 ## 0.2.1
 
 - Cleaner chapter tiles in the week grid: coloured top bar, time in the chapter colour, pill drag

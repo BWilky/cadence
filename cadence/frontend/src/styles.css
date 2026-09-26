@@ -432,6 +432,13 @@ body {
   cursor: ns-resize;
   touch-action: none;
 }
+.col .block .grip.bottom {
+  top: auto;
+  bottom: 0;
+  align-items: flex-end;
+  padding-top: 0;
+  padding-bottom: 3px;
+}
 .col .block .grip .pill {
   width: 26px;
   height: 4px;

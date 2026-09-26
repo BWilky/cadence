@@ -106,7 +106,7 @@ export function DayColumn(props: {
         if (end <= 0) return null;
         const col = chapterColor(co.color);
         return (
-          <div className={"block ghost " + (co.chapter_id === props.currentId ? "current" : "")} style={{ top: 0, height: pct(end) + "%", ["--c-fill" as string]: col.fill, ["--c-line" as string]: col.line }} title={`${co.name} — carried over from the previous day`}>
+          <div className={"block ghost " + (co.chapter_id === props.currentId ? "current" : "")} style={{ top: 0, height: `calc(${pct(end)}% - 3px)`, ["--c-fill" as string]: col.fill, ["--c-line" as string]: col.line }} title={`${co.name} — carried over from the previous day`}>
             <div className="n">↑ {co.name}</div>
           </div>
         );
@@ -121,6 +121,14 @@ export function DayColumn(props: {
             break;
           }
         }
+        let nextIdx = -1;
+        for (let j = i + 1; j < chapters.length; j++) {
+          if (chapters[j].enabled) {
+            nextIdx = j;
+            break;
+          }
+        }
+        const next = nextIdx >= 0 ? chapters[nextIdx] : null;
         const col = chapterColor(c.color);
         const v = props.variantOf?.(c);
         const past = nowMin != null && e < nowMin;
@@ -135,7 +143,7 @@ export function DayColumn(props: {
           <div
             key={c.chapter_id + i}
             className={cls}
-            style={{ top: pct(s) + "%", height: Math.max(1.2, pct(e - s)) + "%", ["--c-fill" as string]: col.fill, ["--c-line" as string]: col.line }}
+            style={{ top: `calc(${pct(s)}% + 1px)`, height: `calc(${Math.max(1.2, pct(e - s))}% - 3px)`, ["--c-fill" as string]: col.fill, ["--c-line" as string]: col.line }}
             title={`${c.name} — ${startText}${holdText}${c.note ? "\n" + c.note : ""}`}
             onClick={() => props.onChapter?.(c)}
             onContextMenu={(ev) => ctxFromEvent(ev, c)}
@@ -163,6 +171,20 @@ export function DayColumn(props: {
             {tall ? <div className="n">{c.name}</div> : null}
             {tall && v ? <div className="v">{v}</div> : null}
             {c.hold ? <div className="holdmark" /> : null}
+            {props.onMoveStart && next && next.kind === "clock" ? (
+              <div
+                className="grip bottom"
+                title={`Drag to change when ${next.name} starts`}
+                onPointerDown={(ev) => {
+                  ev.preventDefault();
+                  ev.stopPropagation();
+                  setDrag({ id: next.chapter_id, minute: starts[nextIdx] });
+                }}
+                onClick={(ev) => ev.stopPropagation()}
+              >
+                <span className="pill" />
+              </div>
+            ) : null}
           </div>
         );
       })}
