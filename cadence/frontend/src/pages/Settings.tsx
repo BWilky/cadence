@@ -116,14 +116,11 @@ export function SettingsPage({ live }: { live: ReturnType<typeof useLive> }) {
         <p className="text-xs opacity-60">LED grace: keypad LED changes this soon after Cadence fires a scene are treated as Cadence's own (extended automatically by each chapter's fade time).</p>
       </Section>
 
-      <Section title="Story">
+      <Section title="Story" intro="Every day runs one template. A template chosen by hand in the planner wins; otherwise the first matching rule (Templates → Rules) takes the day; otherwise the default below. Rules that read a sensor keep checking on the day itself until the cut-off, so a quiet morning can still become a camp day when the building fills up.">
         <div className="grid gap-3 md:grid-cols-2">
-          <Field label="Site name (tablet title)">
-            <input type="text" className="input input-sm w-full" value={s.site_name} onChange={(e) => setS({ ...s, site_name: e.target.value })} />
-          </Field>
-          <Field label="Guest-day template" help="Runs on days with evidence of guests: a matching calendar event, the occupied sensor, or the + button in the planner.">
+          <Field label="Default template" help="Runs on any day no rule or manual choice takes. Leave empty and Cadence does nothing on those days.">
             <select className="select select-sm w-full" value={s.default_template_id ?? ""} onChange={(e) => setS({ ...s, default_template_id: e.target.value || null })}>
-              <option value="">— none —</option>
+              <option value="">Nothing</option>
               {templates.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name}
@@ -131,18 +128,13 @@ export function SettingsPage({ live }: { live: ReturnType<typeof useLive> }) {
               ))}
             </select>
           </Field>
-          <Field label="Vacant-day template" help="Runs on days with no evidence of guests. Leave empty and Cadence does nothing on those days.">
-            <select className="select select-sm w-full" value={s.vacant_template_id ?? ""} onChange={(e) => setS({ ...s, vacant_template_id: e.target.value || null })}>
-              <option value="">— nothing runs —</option>
-              {templates.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
+          <Field label="Rules may take today until" help="After this time today's template is settled. Calendar and date rules are decided at the first check of the day; sensor rules can take over until this cut-off.">
+            <input type="time" className="input input-sm w-40" value={s.rule_scan_until} onChange={(e) => setS({ ...s, rule_scan_until: e.target.value || "12:00" })} />
           </Field>
         </div>
-        <p className="text-xs opacity-60">A day counts as occupied when a calendar event matches your keywords, when the occupied sensor is on (today; remembered for that date afterwards), or when it is forced on in the planner. With no calendar and no sensor configured, every day is treated as occupied.</p>
+        <p className="text-xs opacity-60">
+          {s.rules.length} rule{s.rules.length === 1 ? "" : "s"} defined. Edit them under <a className="link" href="#/templates">Templates</a>. A day counts as occupied (for variant conditions) when a template runs on it, unless a rule or the planner says otherwise.
+        </p>
       </Section>
 
       <Section title="Auto mode" intro='Cadence only drives the building while auto mode is active. Combine the weekly schedule with an external Home Assistant entity (for example a template binary_sensor for "building occupied").'>
@@ -221,9 +213,6 @@ export function SettingsPage({ live }: { live: ReturnType<typeof useLive> }) {
           <Field label="Building asleep">
             <EntityPicker value={s.asleep_entity} onChange={(v) => setS({ ...s, asleep_entity: v })} filter={isBool} />
           </Field>
-          <Field label="Property occupied (today fallback)">
-            <EntityPicker value={s.occupied_entity} onChange={(v) => setS({ ...s, occupied_entity: v })} filter={isBool} />
-          </Field>
         </div>
         <p className="text-xs opacity-60">"Asleep" is usually a template binary_sensor you define in Home Assistant (e.g. no motion anywhere for 30 minutes after 21:00). See DOCS for a ready-made example.</p>
       </Section>
@@ -255,9 +244,7 @@ export function SettingsPage({ live }: { live: ReturnType<typeof useLive> }) {
               <EntityPicker value={null} domain="calendar" placeholder="Add a calendar…" onChange={(v) => v && !s.calendars.includes(v) && setS({ ...s, calendars: [...s.calendars, v] })} />
             </div>
           </Field>
-          <Field label="Occupied when an event title contains (comma separated; empty = any event)">
-            <input type="text" className="input input-sm w-full" value={s.calendar_keywords.join(", ")} onChange={(e) => setS({ ...s, calendar_keywords: e.target.value.split(",").map((x) => x.trim()).filter(Boolean) })} />
-          </Field>
+          <p className="self-end pb-2 text-xs opacity-60">Events appear in the planner. To make a template follow them, add a rule under Templates → Rules with a calendar condition.</p>
         </div>
       </Section>
 

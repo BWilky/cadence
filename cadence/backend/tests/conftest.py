@@ -21,6 +21,7 @@ class FakeHA:
         self.connected = asyncio.Event()
         self.connected.set()
         self.calls: list[tuple] = []
+        self.calendar_events: list[dict] = []  # served by calendar.get_events: {calendar, summary, start, end}
         self._listeners = []
         self._conn = []
 
@@ -33,8 +34,22 @@ class FakeHA:
     async def call_service(self, domain, service, *, target=None, data=None, return_response=False):
         self.calls.append((domain, service, target, data))
         if return_response:
+            if domain == "calendar" and service == "get_events":
+                lo, hi = data["start_date_time"][:10], data["end_date_time"][:10]
+                resp: dict = {}
+                for ev in self.calendar_events:
+                    if ev["start"][:10] < hi and ev["end"][:10] >= lo:
+                        resp.setdefault(ev["calendar"], {"events": []})["events"].append(ev)
+                return {"response": resp}
             return {"response": {}}
         return {}
+
+    def add_event(self, calendar: str, day: str, summary: str, **extra) -> None:
+        """An all-day event on one day (end is exclusive, as Home Assistant returns it)."""
+        from datetime import date, timedelta
+
+        end = (date.fromisoformat(day) + timedelta(days=1)).isoformat()
+        self.calendar_events.append({"calendar": calendar, "summary": summary, "start": day, "end": end, **extra})
 
     # mirror HAClient helpers
     def state(self, eid):

@@ -21,7 +21,7 @@ When someone presses a real keypad button, Cadence notices the RA2 LED switches 
 2. Install **Cadence**. Prebuilt images are pulled for aarch64 and amd64.
 3. In the add-on **Configuration** tab leave **Dry run** on for now, then **Start**.
 4. Open **Cadence** from the sidebar (ingress). Go to **Settings → Starter configurations** and
-   import a seed, or build scenes and a template by hand.
+   import a seed, or build scenes, a template and rules by hand.
 5. Watch the **Activity** tab for a day: every chapter change is logged with the exact service
    calls it *would* make. When it reads right, turn **Dry run** off in the add-on configuration
    (and in Cadence's own Settings → Safety) to go live.
@@ -91,38 +91,63 @@ occupied/vacant, asleep/awake.
 If **Switch variant mid-chapter** is on, a change of sky or motion swaps the variant while the
 chapter runs (playlist starts are skipped on swaps unless you turn that off).
 
-### Templates, occupied days and refining a day
+### Templates, rules and refining a day
 
-Two templates matter: the **guest-day template** (Settings → Story → Guest-day template) and an
-optional **vacant-day template**. Which one a day follows depends on whether there is evidence of
-guests:
+Every day runs one **template**. Which one is decided in this order:
 
-- a calendar event matching your keywords (Settings → Calendar),
-- the **occupied sensor** being on (today; the date is then remembered as occupied), or
-- the day being **forced on** with the **+** button in the planner.
+1. a template **chosen by hand** for that date in the planner's day pane (rules leave it alone),
+2. the first **rule** (Templates → Rules) whose conditions all hold on that day,
+3. the **default template** (Settings → Story), or nothing at all if none is set.
 
-With no calendar and no occupied sensor configured, every day counts as occupied. Days without
-evidence run the vacant-day template, or nothing at all if none is chosen, and are drawn faint in
-the planner. Forced days show a ↺ button to return to automatic.
+A **rule** names a template (or *Nothing*, for closed days) and a list of conditions that must all
+hold: a calendar event whose title, location or description contains / is exactly / matches a regex
+(optionally only all-day or timed events, only certain calendars, or *must not* for "no event
+today"); days of the week; a date range; a binary sensor or sensor group being on or off; a numeric
+sensor above or below a value (a UniFi client count, say). Dates and ranges take `YYYY-MM-DD`, or
+`MM-DD` to recur every year. A rule can also be limited to a validity window, and can set the day's
+occupancy flag, force auto mode on or off, and leave a note for the team. Rules are checked top to
+bottom and the first match wins, so put *Arrow Camp* above *Arrow*; when more than one matches the
+planner shows ⚠ on the day and the activity log says which lost. **Check the next 90 days** in the
+rule editor lists the dates a rule would take on its own.
+
+Calendar, weekday and date conditions are known in advance, so the planner shows those days ahead
+of time (in italics, as a prediction). Sensor conditions can only be judged on the day: the default
+template is **provisional** and the engine keeps checking sensor rules every tick until the cut-off
+in Settings → Story (12:00 by default). If a rule matches, it **takes the day**: the decision is
+recorded on that date, the new template's current chapter is applied at once, and nothing — a
+deleted calendar event, a sensor dropping again — changes it for the rest of the day. The day pane
+shows which rule decided and when, with **Undo** to let rules decide again. A rule that reads a
+sensor and could still take an open day is listed in the pane and marked ? in the header.
+
+A day counts as **occupied** (for variant conditions) whenever a template runs on it, unless the
+rule that took it says otherwise or you mark it occupied or vacant in the day pane. Days that run
+nothing are drawn faint.
 
 The **Planner** is a week: seven columns, hours down the page, ‹ Today › to move between weeks and
-a calendar icon that opens a month grid with occupancy dots for jumping to a date. Clicking a day
-opens a slide-over pane with the day's occupancy, template, auto mode, notes and chapters.
+a calendar icon that opens a month grid for jumping to a date. Each column is tinted with its
+template's colour (set in the template editor) and headed by the template and how it was chosen:
+*Standard day · Camps*, *Arrow · chosen*, *Nothing runs*. Clicking a day opens a slide-over pane
+with the day's template, occupancy, auto mode, notes and chapters.
 
 Refining a day never edits or creates a template. The first change to any chapter (drag its top
 edge, right-click → variant / move / add / remove, or **Customise** in the pane) gives that date its
 **own copy** of the chapters it was following. From then on that date runs exactly those chapters;
 later template edits do not touch it, and nothing else can reference them. **Reset** in the pane
-puts the day back on its template. To reuse a refined day, **copy** it (right-click the column or
-the pane's Copy day button), tick the target days in the week header or navigate with ‹ ›, then
-**Paste**. Pasted days get their own copy of the chapters and are forced occupied.
+puts the day back under rules and the default. To reuse a refined day, **copy** it (right-click the
+column or the pane's Copy day button), tick the target days in the week header or navigate with
+‹ ›, then **Paste**. Pasted days get their own copy of the chapters and are marked occupied.
+
+Upgrading from 0.2: the guest-day / vacant-day split becomes rules automatically. Your calendar
+keywords turn into a *Guests on the calendar* rule and the occupied sensor into an *Occupied
+sensor* rule, both pointing at the old guest-day template; the vacant-day template (or nothing)
+becomes the default.
 
 ### Right-click in the Planner
 
 Drag a chapter's top edge to move its start (5-minute snapping). Right-click a chapter for: edit,
 force a variant for that day, move the start to the clicked time, duplicate or add a new chapter
-there, apply now (today), remove from this day. Right-click empty space for: force occupied, add a
-chapter, open the day, copy day, paste, reset to template, recompute (today).
+there, apply now (today), remove from this day. Right-click empty space for: add a chapter, open
+the day, copy day, paste, reset to template / let rules decide again, recompute (today).
 
 ### Music
 
@@ -190,8 +215,9 @@ by `#/tablet`, or set Fully Kiosk's start URL to it.
 ## Calendar
 
 Add the **Google Calendar** integration in Home Assistant, then pick its `calendar.*` entities in
-Cadence's **Settings → Calendar**. Events appear in the planner columns and pane; titles containing
-any of the keywords mark the day occupied, which selects the guest-day template.
+Cadence's **Settings → Calendar**. Events appear in the planner columns and pane. To make a template
+follow them, add a rule under **Templates → Rules** with a calendar condition ("title contains
+camp, retreat"); the rule editor's preview shows which upcoming days it would take.
 
 ## Local development
 

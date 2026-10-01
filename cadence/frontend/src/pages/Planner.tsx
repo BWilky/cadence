@@ -22,7 +22,16 @@ function weekStart(iso: string): string {
 function monthStart(iso: string): string {
   return iso.slice(0, 8) + "01";
 }
-const OCC_LABEL: Record<string, string> = { forced: "forced on", forced_off: "forced off", calendar: "calendar", sensor: "sensor", always: "occupied", none: "vacant" };
+const OCC_LABEL: Record<string, string> = { forced: "forced occupied", forced_off: "forced vacant", rule: "occupancy set by rule", template: "occupied", none: "vacant" };
+
+/** One line on how a day's template was chosen, for headers and tooltips. */
+function templateLine(d: DayView): string {
+  if (d.detached) return "Own chapters";
+  if (d.template_kind === "none") return d.rule_name ? `Nothing · ${d.rule_name}` : "Nothing runs";
+  if (d.template_kind === "rule") return d.template_name ? `${d.template_name} · ${d.rule_name}` : `Nothing · ${d.rule_name}`;
+  if (d.template_kind === "custom") return `${d.template_name ?? "?"} · chosen`;
+  return d.template_name ?? "";
+}
 
 export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
   const today = todayISO();
@@ -100,18 +109,6 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
     },
     [refreshDay],
   );
-  const setOccupied = useCallback(
-    async (d: DayView, value: boolean | null) => {
-      try {
-        await api.post(`api/plans/${d.date}/occupied`, { occupied: value });
-        await refreshDay(d.date);
-        toast(value ? `${fmtDay(d.date)} forced occupied` : `${fmtDay(d.date)} back to automatic`);
-      } catch (e) {
-        toast((e as Error).message, true);
-      }
-    },
-    [refreshDay],
-  );
   const pasteOnto = useCallback(
     async (targets: string[]) => {
       if (!clipboard || targets.length === 0) return;
@@ -161,14 +158,13 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
       items.push({ label: "Remove from this day", danger: true, onClick: () => editOwn(d, (p) => ({ ...p, chapters: (p.chapters ?? []).filter((x) => x.id !== c.chapter_id), chapter_overrides: p.chapter_overrides.filter((o) => o.chapter_id !== c.chapter_id) }), `Removed ${c.name}`) });
     } else {
       items.push({ label: `${fmtDay(d.date)} · ${at}`, title: true });
-      if (d.occupied === false) items.push({ label: "Force occupied", hint: "+", onClick: () => setOccupied(d, true) });
       items.push({ label: "Add chapter here", hint: at, onClick: () => editOwn(d, (p) => ({ ...p, chapters: [...(p.chapters ?? []), newChapter(at, p)] }), `Added a chapter at ${at}`) });
       items.push({ label: "Open day…", onClick: () => setOpen(d.date) });
       items.push({ divider: true, label: "" });
       items.push({ label: "Copy day", onClick: () => { setClipboard(d.date); setPicked(new Set()); toast(`Copied ${fmtDay(d.date)} — pick days, then paste`); } });
       if (clipboard && clipboard !== d.date) items.push({ label: `Paste ${fmtDay(clipboard)} here`, onClick: () => pasteOnto([d.date]) });
       if (clipboard && picked.size) items.push({ label: `Paste onto ${picked.size} selected day${picked.size > 1 ? "s" : ""}`, onClick: () => pasteOnto([...picked]) });
-      if (d.detached) items.push({ label: "Reset to template", danger: true, onClick: () => api.post(`api/plans/${d.date}/reset`).then(() => refreshDay(d.date)).then(() => toast(`${fmtDay(d.date)} back on its template`), (e) => toast(e.message, true)) });
+      if (d.detached || d.plan?.decision) items.push({ label: d.detached ? "Reset to template" : "Let rules decide again", danger: true, onClick: () => api.post(`api/plans/${d.date}/reset`).then(() => refreshDay(d.date)).then(() => toast(`${fmtDay(d.date)} back to rules and default`), (e) => toast(e.message, true)) });
       if (isToday) items.push({ label: "Recompute now", onClick: () => api.post("api/engine/recompute").then(() => toast("Recomputed")) });
     }
     setMenu({ x: ctx.x, y: ctx.y, items });
@@ -208,10 +204,10 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
         </div>
         {loading ? <span className="loading loading-dots loading-xs opacity-60" /> : null}
         <div className="ml-auto flex items-center gap-3 text-[11px] opacity-60">
-          <span><span className="occ-dot bg-primary" /> calendar</span>
-          <span><span className="occ-dot bg-accent" /> sensor</span>
-          <span><span className="occ-dot bg-secondary" /> forced</span>
+          <span><span className="occ-dot bg-primary" /> rule</span>
+          <span><span className="occ-dot bg-secondary" /> chosen</span>
           <span><span className="occ-dot bg-base-content/40" /> own chapters</span>
+          <span><span className="occ-dot bg-warning" /> rules clash</span>
         </div>
       </div>
 
@@ -222,33 +218,26 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
           const d = cache[date];
           const dt = new Date(date + "T12:00:00");
           const isToday = date === today;
-          const vacant = d?.occupied === false;
+          const quiet = !!d && !d.detached && d.chapters.length === 0;
           const inPick = picked.has(date);
+          const tint = d ? templates.find((t) => t.id === d.template_id)?.color ?? null : null;
           return (
-            <div key={date} className={"group relative border-l border-base-300/60 px-2 py-2 " + (isToday ? "bg-accent/5" : "") + (inPick ? " bg-secondary/10" : "")}>
+            <div key={date} className={"group relative border-l border-base-300/60 px-2 py-2 " + (isToday ? "bg-accent/5" : "") + (inPick ? " bg-secondary/10" : "")} style={tint ? { boxShadow: `inset 0 3px 0 ${tint}` } : undefined}>
               <button type="button" className="flex w-full items-baseline gap-1.5 text-left" onClick={() => (clipboard ? togglePick(date) : setOpen(date))} title={clipboard ? "Select for paste" : "Open this day"}>
                 <span className={"text-[11px] uppercase tracking-wide " + (isToday ? "text-accent" : "opacity-50")}>{dt.toLocaleDateString([], { weekday: "short" })}</span>
-                <span className={"display text-xl leading-none " + (isToday ? "text-accent" : vacant ? "opacity-40" : "")}>{dt.getDate()}</span>
+                <span className={"display text-xl leading-none " + (isToday ? "text-accent" : quiet ? "opacity-40" : "")}>{dt.getDate()}</span>
                 {d ? <OccDots d={d} /> : null}
                 {clipboard ? <input type="checkbox" className="checkbox checkbox-xs checkbox-secondary ml-auto" checked={inPick} readOnly /> : null}
               </button>
-              <div className={"mt-0.5 truncate text-[11px] " + (vacant ? "opacity-40" : "opacity-60")} title={d ? `${OCC_LABEL[d.occupied_reason] ?? ""}${d.template_name ? " · " + d.template_name : ""}` : ""}>
-                {!d ? "" : d.detached ? "Own chapters" : d.template_kind === "none" ? (vacant ? "Vacant · nothing runs" : "No template") : d.template_kind === "vacant" ? `Vacant · ${d.template_name}` : d.template_name}
+              <div className={"mt-0.5 flex items-center gap-1 text-[11px] " + (quiet ? "opacity-40" : "opacity-60") + (d?.predicted && d.template_kind === "rule" ? " italic" : "")} title={d ? `${d.template_reason}${d.predicted ? " (expected)" : d.decided ? " (settled)" : ""} · ${OCC_LABEL[d.occupied_reason] ?? ""}${d.pending_rules.length ? "\nMay still become: " + d.pending_rules.map((r) => r.rule_name).join(", ") : ""}` : ""}>
+                <span className="truncate">{d ? templateLine(d) : ""}</span>
+                {d && d.conflicts.length ? <span className="text-warning" title={"Also matched: " + d.conflicts.map((c) => c.rule_name).join(", ") + ". The first rule wins."}>⚠</span> : null}
+                {d && d.pending_rules.length && !d.detached && d.template_kind !== "rule" && d.template_kind !== "custom" ? <span className="opacity-70" title={"May still become: " + d.pending_rules.map((r) => r.rule_name).join(", ")}>?</span> : null}
               </div>
               {d && d.events.length ? (
                 <div className="truncate text-[11px] text-primary" title={d.events.map((e) => e.summary ?? "").join("\n")}>
                   {d.events[0].summary}{d.events.length > 1 ? ` +${d.events.length - 1}` : ""}
                 </div>
-              ) : null}
-              {d && vacant && !clipboard ? (
-                <button type="button" className="btn btn-xs btn-circle btn-outline absolute top-1.5 right-1.5 border-base-300 opacity-60 group-hover:opacity-100" title="Force occupied: run the guest template on this day" onClick={() => setOccupied(d, true)}>
-                  +
-                </button>
-              ) : null}
-              {d && d.occupied_reason === "forced" && !clipboard ? (
-                <button type="button" className="btn btn-xs btn-circle btn-ghost absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100" title="Back to automatic occupancy" onClick={() => setOccupied(d, null)}>
-                  ↺
-                </button>
               ) : null}
             </div>
           );
@@ -282,7 +271,7 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
                 }}
                 onContext={(ctx) => openMenu(d, ctx)}
                 onMoveStart={(c, minute) => setChapterStart(d, c, hhmm(minute))}
-                emptyText={d.occupied === false ? "vacant" : undefined}
+                emptyText={d.template_kind === "none" || (d.template_kind === "rule" && !d.template_id) ? "nothing runs" : undefined}
                 className={picked.has(date) ? "bg-secondary/5" : ""}
               />
             );
@@ -335,13 +324,18 @@ function fmtDay(iso: string): string {
 }
 
 /** Small occupancy / customisation marks next to the day number. */
+function kindDot(d: DayView): string | null {
+  if (d.detached) return null;
+  return d.template_kind === "rule" ? "bg-primary" : d.template_kind === "custom" ? "bg-secondary" : null;
+}
+
 function OccDots({ d }: { d: DayView }) {
-  const r = d.occupied_reason;
-  const occ = r === "calendar" ? "bg-primary" : r === "sensor" ? "bg-accent" : r === "forced" ? "bg-secondary" : r === "always" ? "bg-base-content/30" : null;
+  const dot = kindDot(d);
   return (
-    <span className="flex items-center gap-0.5" title={`${OCC_LABEL[r] ?? r}${d.detached ? " · own chapters" : ""}`}>
-      {occ ? <span className={"occ-dot " + occ} /> : null}
+    <span className="flex items-center gap-0.5" title={`${d.template_reason}${d.detached ? " · own chapters" : ""}`}>
+      {dot ? <span className={"occ-dot " + dot + (d.predicted ? " opacity-50" : "")} /> : null}
       {d.detached ? <span className="occ-dot bg-base-content/40" /> : null}
+      {d.conflicts.length ? <span className="occ-dot bg-warning" /> : null}
     </span>
   );
 }
@@ -383,14 +377,14 @@ function MonthPopover(props: { month: string; today: string; cache: Record<strin
           const d = props.cache[date];
           const inMonth = date.slice(0, 7) === first.slice(0, 7);
           const isToday = date === props.today;
-          const r = d?.occupied_reason;
-          const occ = r === "calendar" ? "bg-primary" : r === "sensor" ? "bg-accent" : r === "forced" ? "bg-secondary" : r === "always" ? "bg-base-content/30" : null;
+          const occ = d ? kindDot(d) : null;
           return (
-            <button key={date} type="button" className={"flex h-8 flex-col items-center justify-center rounded-field text-xs hover:bg-base-200 " + (inMonth ? "" : "opacity-30 ") + (isToday ? "font-bold text-accent" : "")} onClick={() => props.onPick(date)}>
+            <button key={date} type="button" className={"flex h-8 flex-col items-center justify-center rounded-field text-xs hover:bg-base-200 " + (inMonth ? "" : "opacity-30 ") + (isToday ? "font-bold text-accent" : "")} onClick={() => props.onPick(date)} title={d ? templateLine(d) : undefined}>
               <span>{Number(date.slice(8, 10))}</span>
               <span className="flex h-1.5 items-center gap-0.5">
                 {occ ? <span className={"occ-dot " + occ} /> : null}
                 {d?.detached ? <span className="occ-dot bg-base-content/40" /> : null}
+                {d?.conflicts.length ? <span className="occ-dot bg-warning" /> : null}
               </span>
             </button>
           );
@@ -405,7 +399,7 @@ function MonthPopover(props: { month: string; today: string; cache: Record<strin
 }
 
 function emptyPlan(date: string): DayPlan {
-  return { date, template_id: null, chapter_overrides: [], extra_chapters: [], chapters: null, auto: "default", auto_windows: [], occupied: null, notes: "" };
+  return { date, template_id: null, chapter_overrides: [], extra_chapters: [], chapters: null, auto: "default", auto_windows: [], occupied: null, notes: "", decision: null };
 }
 
 function setVariant(p: DayPlan, cid: string, key: string | null): DayPlan {
@@ -494,8 +488,8 @@ function DayPane(props: { view: DayView; templates: Template[]; scenes: CadenceS
   };
   const save = () => run(() => api.put(`api/plans/${view.date}`, plan), `Saved ${fmtDay(view.date)}`);
   const detach = () => run(() => api.post(`api/plans/${view.date}/detach`), "This day now has its own chapters");
-  const reset = () => run(() => api.post(`api/plans/${view.date}/reset`), "Back on the template");
-  const occ = (v: boolean | null) => run(() => api.post(`api/plans/${view.date}/occupied`, { occupied: v }), v ? "Forced occupied" : "Automatic occupancy");
+  const reset = () => run(() => api.post(`api/plans/${view.date}/reset`), "Back to rules and the default");
+  const occ = (v: boolean | null) => run(() => api.post(`api/plans/${view.date}/occupied`, { occupied: v }), v === null ? "Automatic occupancy" : v ? "Marked occupied" : "Marked vacant");
 
   const vk = (cid: string) => plan.chapter_overrides.find((o) => o.chapter_id === cid)?.variant_key ?? null;
   const resolved = (cid: string) => view.chapters.find((c) => c.chapter_id === cid);
@@ -516,20 +510,69 @@ function DayPane(props: { view: DayView; templates: Template[]; scenes: CadenceS
           <button className="btn btn-ghost btn-sm btn-circle" onClick={props.onClose} aria-label="Close">✕</button>
         </div>
 
-        {/* occupancy */}
+        {/* what runs */}
+        <div className="rounded-box border border-base-300 p-3" style={tmpl?.color ? { boxShadow: `inset 3px 0 0 ${tmpl.color}` } : undefined}>
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-sm font-semibold">{own ? "Own chapters" : view.template_name ?? "Nothing runs"}</div>
+              <div className="text-xs opacity-60">
+                {own
+                  ? "This day's chapters live on this date only. They are not a template; copy the day to reuse them."
+                  : view.template_kind === "custom"
+                    ? "Template chosen for this day. Rules leave it alone."
+                    : view.template_kind === "rule"
+                      ? `Rule "${view.rule_name}" (${view.template_reason.split(" · ").slice(1).join(" · ") || "matched"})${view.decided ? ", settled for the day." : view.predicted ? ", expected from the calendar." : "."}`
+                      : view.template_kind === "default"
+                        ? `The default template${view.predicted ? ", unless a rule takes the day" : ""}. Editing any chapter gives this day its own copy.`
+                        : "No rule took this day and there is no default template."}
+              </div>
+              {view.conflicts.length ? <div className="mt-1 text-xs text-warning">Also matched: {view.conflicts.map((c) => c.rule_name).join(", ")}. The first rule in the list wins; reorder them under Templates → Rules.</div> : null}
+              {view.pending_rules.length && !own && view.template_kind !== "custom" && view.template_kind !== "rule" ? <div className="mt-1 text-xs opacity-60">May still become: {view.pending_rules.map((r) => `${r.rule_name}${r.template_name ? ` (${r.template_name})` : ""}`).join(", ")} — sensor rules are checked on the day.</div> : null}
+            </div>
+            {own ? (
+              <Confirm text="Back to template?" onYes={reset} className="btn btn-sm btn-ghost text-error">
+                Reset
+              </Confirm>
+            ) : view.template_id ? (
+              <button className="btn btn-sm btn-outline" disabled={saving} onClick={detach}>Customise</button>
+            ) : null}
+          </div>
+          {!own ? (
+            <Field label="Template for this day" className="mt-2">
+              <select className="select select-sm w-full" value={plan.template_id ?? ""} onChange={(e) => setPlan({ ...plan, template_id: e.target.value || null })}>
+                <option value="">Automatic (rules, then the default)</option>
+                {props.templates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          ) : null}
+          {!own && plan.decision && !plan.template_id ? (
+            <div className="mt-2 flex items-center justify-between gap-2 text-xs">
+              <span className="opacity-60">Decided {fmtTime(plan.decision.at)} by "{plan.decision.rule_name}".</span>
+              <Confirm text="Let rules decide again?" onYes={reset} className="btn btn-xs btn-ghost">
+                Undo
+              </Confirm>
+            </div>
+          ) : null}
+        </div>
+
+        {/* occupancy & calendar */}
         <div className="rounded-box border border-base-300 p-3">
           <div className="flex items-center justify-between gap-2">
             <div>
               <div className="text-sm font-semibold">{vacant ? "Vacant" : "Occupied"}</div>
               <div className="text-xs opacity-60">
-                {view.occupied_reason === "forced" ? "Forced on with the + button." : view.occupied_reason === "calendar" ? "A calendar event matches your keywords." : view.occupied_reason === "sensor" ? "The occupied sensor was on." : view.occupied_reason === "always" ? "No calendar or sensor configured, so every day counts as occupied." : view.occupied_reason === "forced_off" ? "Forced vacant." : "No calendar event and the sensor has not been on."}
+                {view.occupied_reason === "forced" ? "Forced occupied. Variants that ask for an occupied day match." : view.occupied_reason === "forced_off" ? "Forced vacant. Variants that ask for an occupied day do not match." : view.occupied_reason === "rule" ? "Set by the rule that took this day." : view.occupied_reason === "template" ? "A template runs, so the day counts as occupied for variant conditions." : "Nothing runs, so the day counts as vacant."}
               </div>
             </div>
             {view.occupied_reason === "forced" || view.occupied_reason === "forced_off" ? (
               <button className="btn btn-sm btn-ghost" disabled={saving} onClick={() => occ(null)}>Automatic</button>
-            ) : vacant ? (
-              <button className="btn btn-sm btn-primary" disabled={saving} onClick={() => occ(true)}>+ Force occupied</button>
-            ) : null}
+            ) : (
+              <button className="btn btn-sm btn-ghost" disabled={saving} onClick={() => occ(!vacant ? false : true)}>{vacant ? "Mark occupied" : "Mark vacant"}</button>
+            )}
           </div>
           {view.events.length ? (
             <div className="mt-2 border-t border-base-300 pt-2 text-xs">
@@ -539,37 +582,6 @@ function DayPane(props: { view: DayView; templates: Template[]; scenes: CadenceS
                 </div>
               ))}
             </div>
-          ) : null}
-        </div>
-
-        {/* what runs */}
-        <div className="rounded-box border border-base-300 p-3">
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <div className="text-sm font-semibold">{own ? "Own chapters" : view.template_kind === "none" ? "Nothing runs" : view.template_name}</div>
-              <div className="text-xs opacity-60">
-                {own ? "This day's chapters live on this date only. They are not a template; copy the day to reuse them." : view.template_kind === "vacant" ? "Vacant-day template." : view.template_kind === "custom" ? "Template chosen for this day." : view.template_kind === "default" ? "Guest-day template. Editing any chapter gives this day its own copy." : "No template applies. Force the day occupied or pick a template."}
-              </div>
-            </div>
-            {own ? (
-              <Confirm text="Back to template?" onYes={reset} className="btn btn-sm btn-ghost text-error">
-                Reset
-              </Confirm>
-            ) : view.template_kind !== "none" ? (
-              <button className="btn btn-sm btn-outline" disabled={saving} onClick={detach}>Customise</button>
-            ) : null}
-          </div>
-          {!own ? (
-            <Field label="Template for this day" className="mt-2">
-              <select className="select select-sm w-full" value={plan.template_id ?? ""} onChange={(e) => setPlan({ ...plan, template_id: e.target.value || null })}>
-                <option value="">Automatic (guest / vacant)</option>
-                {props.templates.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
           ) : null}
         </div>
 

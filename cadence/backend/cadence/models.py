@@ -174,7 +174,86 @@ class Template(BaseModel):
     id: str
     name: str
     description: str = ""
+    color: str | None = None  # tints planner columns that run this template
     chapters: list[Chapter] = Field(default_factory=list)
+
+
+# ----------------------------------------------------------------------------- template rules
+
+RuleConditionKind = Literal["calendar", "weekday", "date_range", "entity", "numeric"]
+DATE_OR_MMDD = re.compile(r"^(\d{4}-)?\d{2}-\d{2}$")
+
+
+def _check_rule_date(v: str | None) -> str | None:
+    if v is None or v == "":
+        return None
+    if not DATE_OR_MMDD.match(v):
+        raise ValueError(f"expected YYYY-MM-DD or MM-DD, got {v!r}")
+    return v
+
+
+class RuleCondition(BaseModel):
+    """One test a day must pass for a rule to apply. ``negate`` flips it ("no matching event today")."""
+
+    kind: RuleConditionKind = "calendar"
+    negate: bool = False
+    # calendar: an event on the day whose `field` matches any of `terms` (empty terms = any event)
+    calendars: list[str] = Field(default_factory=list)  # empty = every configured calendar
+    field: Literal["summary", "location", "description"] = "summary"
+    match: Literal["contains", "exact", "regex"] = "contains"
+    terms: list[str] = Field(default_factory=list)  # regex: terms[0] is the pattern
+    all_day: bool | None = None  # None = all-day or timed
+    # weekday: Monday == 0
+    weekdays: list[int] = Field(default_factory=list)
+    # date_range: inclusive; YYYY-MM-DD, or MM-DD to recur every year (end before start wraps the new year)
+    start: str | None = None
+    end: str | None = None
+    # entity: a binary entity or sensor group (group:<id>) in `state`; numeric: a sensor above / below
+    entity_id: str | None = None
+    state: str = "on"
+    above: float | None = None
+    below: float | None = None
+
+    _v = field_validator("start", "end")(classmethod(lambda cls, v: _check_rule_date(v)))
+
+    @property
+    def live(self) -> bool:
+        """True when the condition reads a live sensor and so can only be judged on the day itself."""
+        return self.kind in ("entity", "numeric")
+
+
+class TemplateRule(BaseModel):
+    """Apply a template to any day that passes every condition. Rules are checked top to bottom; the first
+    match wins. Days with a manual template choice or their own chapters are never touched."""
+
+    id: str
+    name: str
+    enabled: bool = True
+    template_id: str | None = None  # None = nothing runs on matching days
+    conditions: list[RuleCondition] = Field(default_factory=list)
+    valid_from: str | None = None  # YYYY-MM-DD or MM-DD (recurring)
+    valid_until: str | None = None
+    # Extras applied to the day when the rule decides it
+    set_occupied: bool | None = None
+    auto: Literal["default", "on", "off"] = "default"
+    note: str = ""
+
+    _v = field_validator("valid_from", "valid_until")(classmethod(lambda cls, v: _check_rule_date(v)))
+
+    @property
+    def live(self) -> bool:
+        return any(c.live for c in self.conditions)
+
+
+class TemplateDecision(BaseModel):
+    """What a rule decided for a date, recorded on the day plan so the day stays put afterwards."""
+
+    template_id: str | None
+    rule_id: str
+    rule_name: str
+    why: str = ""  # human summary of what matched, e.g. "calendar: Arrow Camp Week"
+    at: str  # ISO datetime the decision was made
+    matched: list[str] = Field(default_factory=list)  # every rule that matched at the time (conflicts)
 
 
 # ----------------------------------------------------------------------------- planning
@@ -209,8 +288,9 @@ class DayPlan(BaseModel):
     chapters: list[Chapter] | None = None
     auto: Literal["default", "on", "off", "windows"] = "default"
     auto_windows: list[TimeWindow] = Field(default_factory=list)
-    occupied: bool | None = None  # True = forced occupied (the + button); None = from calendar / sensor
+    occupied: bool | None = None  # True = forced occupied; None = from the rule that decided the day / whether anything runs
     notes: str = ""
+    decision: TemplateDecision | None = None  # the rule that took this day; set once on the day itself, then left alone
 
     @property
     def detached(self) -> bool:
@@ -257,8 +337,10 @@ class ZoneGlow(BaseModel):
 
 
 class Settings(BaseModel):
-    default_template_id: str | None = None  # runs on occupied (guest) days
-    vacant_template_id: str | None = None  # runs on days with no evidence of guests; None -> nothing runs
+    schema_version: int = 1  # bumped by cadence.migrate when stored settings change shape
+    default_template_id: str | None = None  # runs on any day no rule or manual choice takes; None -> nothing runs
+    rules: list[TemplateRule] = Field(default_factory=list)  # checked top to bottom, first match wins
+    rule_scan_until: str = "12:00"  # today's provisional default can still be taken by a rule until this time
     # Auto-mode gating
     auto_source: Literal["either", "schedule", "entity", "always"] = "either"
     auto_schedule: WeeklySchedule = Field(default_factory=WeeklySchedule)
@@ -266,11 +348,9 @@ class Settings(BaseModel):
     # Building senses
     motion_entity: str | None = None
     asleep_entity: str | None = None
-    occupied_entity: str | None = None  # e.g. input_boolean.propertyoccupied
     sky: SkyConfig = Field(default_factory=SkyConfig)
     # Calendar overlay
     calendars: list[str] = Field(default_factory=list)
-    calendar_keywords: list[str] = Field(default_factory=list)  # empty -> any event counts
     # Sensor groups for chapter starts and holds (edited in Settings, referenced as group:<id>)
     sensor_groups: list[SensorGroup] = Field(default_factory=list)
     # Music
@@ -285,13 +365,26 @@ class Settings(BaseModel):
     hold_timeout_minutes: float = 60
     tick_seconds: int = 15
 
+    _v_scan = field_validator("rule_scan_until")(classmethod(lambda cls, v: _check_hhmm(v) or "12:00"))
+
 
 # ----------------------------------------------------------------------------- runtime views
 
 
-# Why a day counts as occupied: forced by the + button, a matching calendar event, the live occupied
-# sensor (today, or remembered from an earlier day), "always" when no evidence source is configured.
-OccupiedReason = Literal["forced", "forced_off", "calendar", "sensor", "always", "none"]
+# Why a day counts as occupied: forced in the planner, set by the rule that decided the day, or simply
+# because a template runs ("template"); "none" when nothing runs.
+OccupiedReason = Literal["forced", "forced_off", "rule", "template", "none"]
+
+# How a day's template was chosen: its own chapters, a manual choice, a rule, the default, or nothing.
+TemplateKind = Literal["own", "custom", "rule", "default", "none"]
+
+
+class RuleMatch(BaseModel):
+    rule_id: str
+    rule_name: str
+    template_id: str | None
+    template_name: str | None = None
+    why: str = ""
 
 
 class ResolvedChapter(BaseModel):
@@ -334,7 +427,14 @@ class DayView(BaseModel):
     occupied: bool | None
     occupied_reason: OccupiedReason = "none"
     detached: bool = False  # the day runs its own chapters instead of a template
-    template_kind: Literal["default", "vacant", "custom", "own", "none"] = "none"
+    template_kind: TemplateKind = "none"
+    template_reason: str = ""  # "Camps rule · calendar: Arrow Camp Week", "chosen for this day", "default"
+    rule_id: str | None = None
+    rule_name: str | None = None
+    decided: bool = False  # a rule took this day and it is now locked (today / past)
+    predicted: bool = False  # future day: rule outcome from calendar and date conditions only
+    conflicts: list[RuleMatch] = Field(default_factory=list)  # other rules that also matched (first wins)
+    pending_rules: list[RuleMatch] = Field(default_factory=list)  # sensor rules that may still take the day
     events: list[dict] = Field(default_factory=list)
     sunrise: str | None = None
     sunset: str | None = None
@@ -359,6 +459,8 @@ class EngineStatus(BaseModel):
     date: str
     template_id: str | None
     template_name: str | None
+    template_kind: TemplateKind = "none"
+    template_reason: str = ""
     chapter: dict | None
     variant: dict | None
     scenes: list[dict] = Field(default_factory=list)

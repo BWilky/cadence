@@ -117,7 +117,59 @@ export interface Template {
   id: string;
   name: string;
   description: string;
+  color?: string | null;
   chapters: Chapter[];
+}
+
+// ----------------------------------------------------------------------------- template rules
+
+export type RuleConditionKind = "calendar" | "weekday" | "date_range" | "entity" | "numeric";
+
+export interface RuleCondition {
+  kind: RuleConditionKind;
+  negate: boolean;
+  calendars: string[];
+  field: "summary" | "location" | "description";
+  match: "contains" | "exact" | "regex";
+  terms: string[];
+  all_day?: boolean | null;
+  weekdays: number[]; // Monday == 0
+  start?: string | null; // YYYY-MM-DD or MM-DD
+  end?: string | null;
+  entity_id?: string | null; // entity or group:<id>
+  state: string;
+  above?: number | null;
+  below?: number | null;
+}
+
+export interface TemplateRule {
+  id: string;
+  name: string;
+  enabled: boolean;
+  template_id?: string | null; // null = nothing runs
+  conditions: RuleCondition[];
+  valid_from?: string | null;
+  valid_until?: string | null;
+  set_occupied?: boolean | null;
+  auto: "default" | "on" | "off";
+  note: string;
+}
+
+export interface TemplateDecision {
+  template_id: string | null;
+  rule_id: string;
+  rule_name: string;
+  why: string;
+  at: string;
+  matched: string[];
+}
+
+export interface RuleMatch {
+  rule_id: string;
+  rule_name: string;
+  template_id: string | null;
+  template_name?: string | null;
+  why: string;
 }
 
 export interface TimeWindow {
@@ -142,9 +194,11 @@ export interface DayPlan {
   auto_windows: TimeWindow[];
   occupied?: boolean | null; // true = forced occupied; null = automatic
   notes: string;
+  decision?: TemplateDecision | null; // the rule that took this day
 }
 
-export type OccupiedReason = "forced" | "forced_off" | "calendar" | "sensor" | "always" | "none";
+export type OccupiedReason = "forced" | "forced_off" | "rule" | "template" | "none";
+export type TemplateKind = "own" | "custom" | "rule" | "default" | "none";
 
 export interface SkyConfig {
   lux_entity?: string | null;
@@ -172,17 +226,17 @@ export interface ZoneGlow {
 }
 
 export interface Settings {
+  schema_version?: number;
   default_template_id?: string | null;
-  vacant_template_id?: string | null;
+  rules: TemplateRule[];
+  rule_scan_until: string;
   auto_source: "either" | "schedule" | "entity" | "always";
   auto_schedule: { windows: Record<string, TimeWindow[]> };
   auto_entity?: string | null;
   motion_entity?: string | null;
   asleep_entity?: string | null;
-  occupied_entity?: string | null;
   sky: SkyConfig;
   calendars: string[];
-  calendar_keywords: string[];
   sensor_groups: SensorGroup[];
   spotify_entity?: string | null;
   zones: ZoneGlow[];
@@ -238,6 +292,7 @@ export interface CalendarEvent {
   end: string;
   all_day: boolean;
   location?: string | null;
+  description?: string | null;
 }
 
 export interface DayView {
@@ -251,7 +306,14 @@ export interface DayView {
   occupied: boolean | null;
   occupied_reason: OccupiedReason;
   detached: boolean;
-  template_kind: "default" | "vacant" | "custom" | "own" | "none";
+  template_kind: TemplateKind;
+  template_reason: string;
+  rule_id?: string | null;
+  rule_name?: string | null;
+  decided: boolean;
+  predicted: boolean;
+  conflicts: RuleMatch[];
+  pending_rules: RuleMatch[];
   events: CalendarEvent[];
   sunrise: string | null;
   sunset: string | null;
@@ -276,6 +338,8 @@ export interface EngineStatus {
   date: string;
   template_id: string | null;
   template_name: string | null;
+  template_kind?: TemplateKind;
+  template_reason?: string;
   chapter: { id: string; name: string; start: string | null; fade_minutes: number; color?: string | null; note: string; kind: StartKind } | null;
   variant: { key: string; label: string } | null;
   scenes: { id: string; name: string; color?: string | null }[];

@@ -420,118 +420,261 @@ async def test_hold_on_sensor_group(engine, fake_ha):
     assert engine.last_status.chapter["name"] == "Wind down"
 
 
-# ----------------------------------------------------------------------------- occupancy, vacant days, own chapters
+# ----------------------------------------------------------------------------- template rules, occupancy, own chapters
 
 
-def _occupancy_setup(engine, fake_ha, *, vacant=False):
+def _security_template(engine, tid="vacant", name="Vacant"):
     from cadence.engine.engine import KIND_TEMPLATE
     from cadence.models import Chapter, ChapterStart, Template, Variant
 
+    engine.store.put(
+        KIND_TEMPLATE,
+        tid,
+        Template(
+            id=tid,
+            name=name,
+            chapters=[
+                Chapter(
+                    id="security",
+                    name="Security",
+                    start=ChapterStart(kind="clock", time="00:00"),
+                    variants=[Variant(key="on", label="On", scene_ids=["evening_dark"])],
+                )
+            ],
+        ).model_dump(),
+    )
+
+
+def _rules_setup(engine, fake_ha, *, default="vacant"):
+    """Default = the 'Vacant' security template (or nothing); rule 'Guests' puts Standard day on days the
+    occupied sensor is on; rule 'Camp' on days with 'camp' on the calendar."""
+    from cadence.models import RuleCondition, TemplateRule
+
     _configure(engine, fake_ha)
+    _security_template(engine)
     s = engine.settings()
-    s.occupied_entity = "input_boolean.occ"
-    if vacant:
-        engine.store.put(
-            KIND_TEMPLATE,
-            "vacant",
-            Template(
-                id="vacant",
-                name="Vacant",
-                chapters=[
-                    Chapter(
-                        id="security",
-                        name="Security",
-                        start=ChapterStart(kind="clock", time="00:00"),
-                        variants=[Variant(key="on", label="On", scene_ids=["evening_dark"])],
-                    )
-                ],
-            ).model_dump(),
-        )
-        s.vacant_template_id = "vacant"
+    s.default_template_id = default
+    s.calendars = ["calendar.bookings"]
+    s.rules = [
+        TemplateRule(
+            id="camp",
+            name="Camp",
+            template_id="standard_day",
+            conditions=[RuleCondition(kind="calendar", terms=["camp"])],
+            set_occupied=True,
+            note="Camp day",
+        ),
+        TemplateRule(
+            id="guests",
+            name="Guests",
+            template_id="standard_day",
+            conditions=[RuleCondition(kind="entity", entity_id="input_boolean.occ", state="on")],
+            set_occupied=True,
+        ),
+    ]
     engine.save_settings(s)
     fake_ha.set("input_boolean.occ", "off", 3600)
 
 
-async def test_vacant_day_runs_nothing_without_vacant_template(engine, fake_ha):
-    _occupancy_setup(engine, fake_ha)
+def _events(engine, day: str, *summaries: str):
+    """Put all-day events on the fake HA calendar and drop any cached view of that day."""
+    for x in summaries:
+        engine.ha.add_event("calendar.bookings", day, x)
+    engine.calendar_cache.pop(day, None)
+
+
+async def test_unmatched_day_runs_nothing_without_default(engine, fake_ha):
+    _rules_setup(engine, fake_ha, default=None)
+    _events(engine, "2026-09-22")
     _freeze(engine, datetime(2026, 9, 22, 9, 0, tzinfo=TZ))
     await engine.tick()
     st = engine.last_status
     assert st.occupied is False and st.occupied_reason == "none"
-    assert st.chapter is None and st.template_id is None
+    assert st.chapter is None and st.template_id is None and st.template_kind == "none"
     assert not [c for c in fake_ha.calls if c[0] == "scene"]
 
 
-async def test_vacant_day_runs_vacant_template(engine, fake_ha):
-    _occupancy_setup(engine, fake_ha, vacant=True)
+async def test_unmatched_day_runs_default(engine, fake_ha):
+    _rules_setup(engine, fake_ha)
+    _events(engine, "2026-09-22")
     _freeze(engine, datetime(2026, 9, 22, 9, 0, tzinfo=TZ))
     await engine.tick()
     st = engine.last_status
-    assert st.template_id == "vacant" and st.chapter["name"] == "Security"
+    assert st.template_id == "vacant" and st.chapter["name"] == "Security" and st.template_kind == "default"
+    assert st.occupied is True and st.occupied_reason == "template"
     assert ("scene", "turn_on", {"entity_id": "scene.evening"}, None) in fake_ha.calls
 
 
-async def test_live_sensor_turns_the_day_on_and_is_remembered(engine, fake_ha):
-    _occupancy_setup(engine, fake_ha, vacant=True)
+async def test_sensor_rule_takes_provisional_default_and_locks(engine, fake_ha):
+    _rules_setup(engine, fake_ha)
+    _events(engine, "2026-09-22")
     _freeze(engine, datetime(2026, 9, 22, 9, 0, tzinfo=TZ))
     await engine.tick()
     assert engine.last_status.template_id == "vacant"
+    views = await engine.day_views(datetime(2026, 9, 22).date(), datetime(2026, 9, 22).date())
+    assert [p.rule_id for p in views[0].pending_rules] == ["guests"]  # may still take the day
     fake_ha.set("input_boolean.occ", "on")
     await engine.tick()
     st = engine.last_status
-    assert st.occupied is True and st.occupied_reason == "sensor"
-    assert st.template_id == "standard_day" and st.chapter["name"] == "Daytime"
-    # The sensor dropping later in the day does not flip the day back to vacant.
+    assert st.template_id == "standard_day" and st.chapter["name"] == "Daytime" and st.template_kind == "rule"
+    assert st.occupied is True and st.occupied_reason == "forced"  # the rule set occupied on the day
+    plan = engine.plan(datetime(2026, 9, 22).date())
+    assert plan.decision.rule_id == "guests" and plan.occupied is True
+    # The sensor dropping later does not flip the day back.
     fake_ha.set("input_boolean.occ", "off")
     _freeze(engine, datetime(2026, 9, 22, 15, 0, tzinfo=TZ))
     await engine.tick()
-    assert engine.last_status.occupied is True and engine.last_status.template_id == "standard_day"
-    # ...and the next morning the previous day still counts as occupied for carry-over purposes.
+    assert engine.last_status.template_id == "standard_day"
     views = await engine.day_views(datetime(2026, 9, 22).date(), datetime(2026, 9, 23).date())
-    assert views[0].occupied_reason == "sensor" and views[1].occupied is False
+    assert views[0].template_kind == "rule" and views[0].decided and views[0].rule_name == "Guests"
+    assert views[1].template_kind == "default" and views[1].predicted and not views[1].decided
 
 
-async def test_forced_occupied_overrides_sensor(engine, fake_ha):
-    _occupancy_setup(engine, fake_ha, vacant=True)
+async def test_sensor_rule_ignored_after_scan_cutoff(engine, fake_ha):
+    _rules_setup(engine, fake_ha)
+    _events(engine, "2026-09-22")
+    fake_ha.set("input_boolean.occ", "on")
+    _freeze(engine, datetime(2026, 9, 22, 12, 30, tzinfo=TZ))
+    await engine.tick()
+    assert engine.last_status.template_id == "vacant" and engine.plan(datetime(2026, 9, 22).date()) is None
+    views = await engine.day_views(datetime(2026, 9, 22).date(), datetime(2026, 9, 22).date())
+    assert views[0].pending_rules == []
+    s = engine.settings()
+    s.rule_scan_until = "23:00"
+    engine.save_settings(s)
+    await engine.tick()
+    assert engine.last_status.template_id == "standard_day"
+
+
+async def test_calendar_rule_locks_early_and_survives_event_removal(engine, fake_ha):
+    _rules_setup(engine, fake_ha)
+    _events(engine, "2026-09-22", "Arrow Camp week")
+    _freeze(engine, datetime(2026, 9, 22, 0, 5, tzinfo=TZ))
+    await engine.tick()
+    plan = engine.plan(datetime(2026, 9, 22).date())
+    assert plan.decision.rule_id == "camp" and "Arrow Camp week" in plan.decision.why
+    assert plan.notes == "Camp day"
+    assert engine.last_status.template_reason.startswith("Camp · calendar: Arrow Camp week")
+    _events(engine, "2026-09-22")  # event deleted mid-day
+    _freeze(engine, datetime(2026, 9, 22, 9, 0, tzinfo=TZ))
+    await engine.tick()
+    assert engine.last_status.template_id == "standard_day" and engine.last_status.chapter["name"] == "Daytime"
+
+
+async def test_rules_first_match_wins_and_conflicts_are_flagged(engine, fake_ha):
+    from cadence.models import RuleCondition, TemplateRule
+
+    _rules_setup(engine, fake_ha)
+    _security_template(engine, "arrow", "Arrow")
+    s = engine.settings()
+    # "Arrow Camp" above "Arrow": the substring rule still matches, so it shows as a conflict.
+    cal = lambda *t: [RuleCondition(kind="calendar", terms=list(t))]  # noqa: E731
+    s.rules = [
+        TemplateRule(id="arrow_camp", name="Arrow Camp", template_id="standard_day", conditions=cal("arrow camp")),
+        TemplateRule(id="arrow", name="Arrow", template_id="arrow", conditions=cal("arrow")),
+    ]
+    engine.save_settings(s)
+    _events(engine, "2026-09-25", "Arrow Camp")
+    _events(engine, "2026-09-26", "Arrow retreat")
+    _freeze(engine, datetime(2026, 9, 22, 9, 0, tzinfo=TZ))
+    views = await engine.day_views(datetime(2026, 9, 25).date(), datetime(2026, 9, 26).date())
+    assert views[0].template_id == "standard_day" and views[0].rule_name == "Arrow Camp" and views[0].predicted
+    assert [c.rule_name for c in views[0].conflicts] == ["Arrow"]
+    assert views[1].template_id == "arrow" and views[1].conflicts == []
+    # Day of: the decision records both matches and the log carries a warning.
+    _events(engine, "2026-09-22", "Arrow Camp")
+    await engine.tick()
+    plan = engine.plan(datetime(2026, 9, 22).date())
+    assert plan.decision.rule_id == "arrow_camp" and plan.decision.matched == ["arrow_camp", "arrow"]
+    assert any(e["entry"]["level"] == "warning" and "2 rules matched" in e["entry"]["message"] for e in engine.events if e.get("type") == "log")
+
+
+async def test_manual_choice_beats_rule_and_reset_reopens_the_day(engine, fake_ha):
+    from cadence.engine.engine import KIND_PLAN
+    from cadence.models import DayPlan
+
+    _rules_setup(engine, fake_ha)
+    _events(engine, "2026-09-22", "camp")
+    engine.store.put(KIND_PLAN, "2026-09-22", DayPlan(date="2026-09-22", template_id="vacant").model_dump())
+    _freeze(engine, datetime(2026, 9, 22, 9, 0, tzinfo=TZ))
+    await engine.tick()
+    assert engine.last_status.template_id == "vacant" and engine.last_status.template_kind == "custom"
+    assert engine.plan(datetime(2026, 9, 22).date()).decision is None  # a chosen day is never scanned
+    plan = engine.plan(datetime(2026, 9, 22).date())
+    plan.template_id = None
+    engine.store.put(KIND_PLAN, "2026-09-22", plan.model_dump())
+    await engine.tick()
+    assert engine.last_status.template_kind == "rule" and engine.last_status.template_id == "standard_day"
+    # Reset clears the decision; before the cutoff the rule simply takes the day again.
+    engine.reset_day(datetime(2026, 9, 22).date())
+    assert (engine.plan(datetime(2026, 9, 22).date()) or DayPlan(date="2026-09-22")).decision is None
+    await engine.tick()
+    assert engine.plan(datetime(2026, 9, 22).date()).decision.rule_id == "camp"
+
+
+async def test_rule_extras_auto_and_nothing_runs(engine, fake_ha):
+    from cadence.models import RuleCondition, TemplateRule
+
+    _rules_setup(engine, fake_ha)
+    s = engine.settings()
+    monday = [RuleCondition(kind="weekday", weekdays=[0])]
+    s.rules = [TemplateRule(id="closed", name="Closed Mondays", template_id=None, conditions=monday, auto="off", set_occupied=False)]
+    engine.save_settings(s)
+    _events(engine, "2026-09-21")
+    _freeze(engine, datetime(2026, 9, 21, 9, 0, tzinfo=TZ))  # a Monday
+    await engine.tick()
+    st = engine.last_status
+    assert st.template_id is None and st.chapter is None and st.template_kind == "rule"
+    assert st.auto_active is False and st.occupied is False and st.occupied_reason == "forced_off"
+    assert engine.plan(datetime(2026, 9, 21).date()).auto == "off"
+    assert not [c for c in fake_ha.calls if c[0] == "scene"]
+
+
+async def test_forced_occupied_flag_feeds_variants_only(engine, fake_ha):
+    _rules_setup(engine, fake_ha)
+    _events(engine, "2026-09-22")
     engine.set_occupied(datetime(2026, 9, 22).date(), True)
     _freeze(engine, datetime(2026, 9, 22, 9, 0, tzinfo=TZ))
     await engine.tick()
     st = engine.last_status
-    assert st.occupied_reason == "forced" and st.template_id == "standard_day"
-    engine.set_occupied(datetime(2026, 9, 22).date(), None)
-    await engine.tick()
-    assert engine.last_status.template_id == "vacant"
+    assert st.occupied_reason == "forced" and st.template_id == "vacant"  # the flag no longer picks a template
 
 
-async def test_no_evidence_sources_means_always_occupied(engine, fake_ha):
-    _configure(engine, fake_ha)  # no calendars, no occupied entity
-    _freeze(engine, datetime(2026, 9, 22, 9, 0, tzinfo=TZ))
-    await engine.tick()
-    assert engine.last_status.occupied is True and engine.last_status.occupied_reason == "always"
-    assert engine.last_status.chapter["name"] == "Daytime"
+async def test_preview_rule_lists_matching_days(engine, fake_ha):
+    from cadence.models import RuleCondition, TemplateRule
+
+    _rules_setup(engine, fake_ha)
+    _events(engine, "2026-09-24", "Arrow Camp")
+    conds = [RuleCondition(kind="calendar", terms=["camp"]), RuleCondition(kind="weekday", weekdays=[3, 5])]
+    rule = TemplateRule(id="x", name="x", template_id="standard_day", conditions=conds)
+    out = await engine.preview_rule(rule, datetime(2026, 9, 21).date(), datetime(2026, 9, 27).date())
+    assert [m["date"] for m in out] == ["2026-09-24"] and not out[0]["day_of"]
+    conds = [RuleCondition(kind="weekday", weekdays=[5]), RuleCondition(kind="numeric", entity_id="sensor.wifi", above=10)]
+    live = TemplateRule(id="y", name="y", template_id="standard_day", conditions=conds)
+    out = await engine.preview_rule(live, datetime(2026, 9, 21).date(), datetime(2026, 9, 27).date())
+    assert [m["date"] for m in out] == ["2026-09-26"] and out[0]["day_of"]
 
 
 async def test_detach_day_then_refine_and_copy(engine, fake_ha):
     from cadence.engine.engine import KIND_PLAN, KIND_TEMPLATE
-    from cadence.models import ChapterOverride, ChapterStart, DayPlan, Template
+    from cadence.models import ChapterOverride, ChapterStart, Template
 
-    _occupancy_setup(engine, fake_ha, vacant=True)
+    _rules_setup(engine, fake_ha, default=None)
+    _events(engine, "2026-09-22", "camp")
+    _events(engine, "2026-09-25")
+    _events(engine, "2026-09-26")
     day = datetime(2026, 9, 22).date()
+    _freeze(engine, datetime(2026, 9, 22, 7, 0, tzinfo=TZ))
+    await engine.tick()  # the camp rule takes the day
     tmpl = Template(**engine.store.get(KIND_TEMPLATE, "standard_day"))
     n = len(tmpl.chapters)
     # A tweak made while still on the template is folded into the detached copy.
-    engine.store.put(
-        KIND_PLAN,
-        "2026-09-22",
-        DayPlan(
-            date="2026-09-22",
-            chapter_overrides=[ChapterOverride(chapter_id="daytime_am", start=ChapterStart(kind="clock", time="08:00"), variant_key="cloudy")],
-        ).model_dump(),
-    )
+    plan = engine.plan(day)
+    plan.chapter_overrides = [ChapterOverride(chapter_id="daytime_am", start=ChapterStart(kind="clock", time="08:00"), variant_key="cloudy")]
+    engine.store.put(KIND_PLAN, "2026-09-22", plan.model_dump())
 
     plan = engine.detach_day(day)
     assert plan.detached and len(plan.chapters) == n
-    assert plan.occupied is True  # detaching a vacant day forces it on
     own = next(c for c in plan.chapters if c.id == "daytime_am")
     assert own.start.time == "08:00"
     assert [o.variant_key for o in plan.chapter_overrides] == ["cloudy"]
@@ -543,11 +686,11 @@ async def test_detach_day_then_refine_and_copy(engine, fake_ha):
     _freeze(engine, datetime(2026, 9, 22, 7, 50, tzinfo=TZ))
     await engine.tick()
     st = engine.last_status
-    assert st.chapter["name"] == "Daytime" and st.variant["key"] == "cloudy"
+    assert st.chapter["name"] == "Daytime" and st.variant["key"] == "cloudy" and st.template_kind == "own"
     assert all(r.source == "own" for r in st.timeline)
     assert Template(**engine.store.get(KIND_TEMPLATE, "standard_day")).chapters == tmpl.chapters
 
-    # Paste onto two other days: they get their own copies and are forced occupied.
+    # Paste onto two other days (which would otherwise run nothing): they get their own copies, forced occupied.
     out = engine.copy_day(day, [datetime(2026, 9, 25).date(), datetime(2026, 9, 26).date(), day])
     assert [p.date for p in out] == ["2026-09-25", "2026-09-26"]
     views = await engine.day_views(datetime(2026, 9, 25).date(), datetime(2026, 9, 26).date())
@@ -555,8 +698,9 @@ async def test_detach_day_then_refine_and_copy(engine, fake_ha):
         assert v.detached and v.occupied_reason == "forced" and v.template_kind == "own"
         assert next(r for r in v.chapters if r.chapter_id == "daytime_am").start.endswith("07:45:00-07:00")
 
-    # Reset: back to the template, occupancy flag kept.
+    # Reset: the decision is cleared too, and before the cutoff the camp rule takes the day again.
     plan = engine.reset_day(day)
-    assert plan is not None and plan.chapters is None and plan.occupied is True
+    assert plan is not None and plan.chapters is None and plan.decision is None and plan.occupied is True
     await engine.tick()
-    assert engine.last_status.template_id == "standard_day" and engine.last_status.chapter["name"] == "Breakfast"
+    assert engine.last_status.template_id == "standard_day" and engine.last_status.template_kind == "rule"
+    assert engine.last_status.chapter["name"] == "Breakfast"

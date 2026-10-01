@@ -51,7 +51,7 @@ def load_seed(store: Store, name: str, *, replace: bool = False) -> dict:
             added["templates"] += 1
     current = store.get(KIND_SETTINGS, "main") or {}
     merged = {**current, **settings_patch} if (replace or not current) else {**settings_patch, **current}
-    if not merged.get("default_template_id") and templates:
+    if "default_template_id" not in merged and templates:
         merged["default_template_id"] = templates[0].id
     s = Settings(**merged)
     store.put(KIND_SETTINGS, "main", s.model_dump())

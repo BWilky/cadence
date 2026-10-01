@@ -2,7 +2,7 @@ import { useState } from "react";
 import { api, fmtTime, type useLive } from "../api";
 import { Track } from "../components/Track";
 
-const OCC_REASON: Record<string, string> = { forced: "forced on", forced_off: "forced off", calendar: "calendar", sensor: "sensor", always: "no evidence sources configured" };
+const OCC_REASON: Record<string, string> = { forced: "forced on", forced_off: "forced off", rule: "set by rule", template: "a template runs" };
 import { Pill, SKY_LABEL, toast } from "../components/ui";
 import type { ResolvedChapter } from "../types";
 
@@ -40,7 +40,10 @@ export function Now({ live }: { live: Live }) {
         {/* Now */}
         <div className="card border border-base-300 bg-base-100 shadow-sm">
           <div className="card-body gap-3">
-            <div className="eyebrow">Now · {st.template_name ?? "no template"}</div>
+            <div className="eyebrow" title={st.template_reason ?? ""}>
+              Now · {st.template_name ?? (st.template_kind === "own" ? "own chapters" : "nothing runs")}
+              {st.template_kind === "rule" && st.template_reason ? <span className="ml-1 opacity-60">· {st.template_reason.split(" · ")[0]}</span> : st.template_kind === "custom" ? <span className="ml-1 opacity-60">· chosen</span> : null}
+            </div>
             <h2 className="display text-4xl leading-none">{st.chapter?.name ?? "Nothing scheduled"}</h2>
             <div className="flex flex-wrap items-center gap-2">
               {st.variant ? <span className="badge badge-primary badge-soft">{st.variant.label}</span> : null}

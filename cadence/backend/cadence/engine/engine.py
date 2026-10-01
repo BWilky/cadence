@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 
 from ..config import Options
 from ..ha.client import HAClient
+from ..migrate import migrate_settings
 from ..models import (
     CadenceScene,
     CarryOver,
@@ -23,13 +24,17 @@ from ..models import (
     EngineStatus,
     ManualHold,
     ResolvedChapter,
+    RuleMatch,
     Settings,
     Template,
+    TemplateDecision,
+    TemplateRule,
     Variant,
     VariantCondition,
 )
 from ..store import Store
 from .actions import Executor
+from .rules import match_rule
 from .schedule import (
     add_days,
     at,
@@ -58,6 +63,7 @@ class Engine:
         self.store = store
         self.opts = opts
         self.emit = emit
+        migrate_settings(store)
         self.exec = Executor(ha, store, self.is_dry_run, emit)
         self.tz = ZoneInfo("UTC")
         self.sun: Sun | None = None
@@ -76,7 +82,6 @@ class Engine:
         self.auto_override_date: str | None = rt.get("auto_override_date")
         self.triggered: dict[str, str] = rt.get("triggered", {})  # "date|chapter_id" -> ISO start
         self.released: dict[str, str] = rt.get("released", {})  # "date|chapter_id" -> ISO time a chapter hold let go
-        self.sensor_days: dict[str, bool] = rt.get("sensor_days", {})  # dates the live occupied sensor switched on
         self.active_hold: dict | None = None
         self.motion_last_on: dict[str, float] = {}
         self.expected_leds: dict[str, tuple[str, float]] = {}  # led -> (state, grace_until_ts)
@@ -113,7 +118,6 @@ class Engine:
                 "auto_override_date": self.auto_override_date,
                 "triggered": self.triggered,
                 "released": self.released,
-                "sensor_days": self.sensor_days,
             },
         )
 
@@ -167,7 +171,11 @@ class Engine:
 
     async def _on_state(self, entity_id: str, old: dict | None, new: dict | None) -> None:
         s = self.settings()
-        watched = {s.sky.lux_entity, s.motion_entity, s.asleep_entity, s.auto_entity, s.occupied_entity, "sun.sun"}
+        watched = {s.sky.lux_entity, s.motion_entity, s.asleep_entity, s.auto_entity, "sun.sun"}
+        for rule in s.rules:
+            for c in rule.conditions:
+                if c.live and c.entity_id:
+                    watched |= self._sensor_members(c.entity_id, s)
         for ch in self._current_template_chapters() + self._chapters_for(add_days(self.now().date(), -1)):
             if ch.motion_entity:
                 watched.add(ch.motion_entity)
@@ -293,20 +301,89 @@ class Engine:
         self.wake()
 
     # ------------------------------------------------------------------ helpers
+    def _match_rules(self, day: date, s: Settings, *, live: bool) -> tuple[list[RuleMatch], list[RuleMatch]]:
+        """(matches, pending): enabled rules whose conditions hold on `day`, in priority order, and — when not
+        judging live — rules that pass their calendar/date conditions but also read sensors, so can only be
+        settled on the day itself."""
+        events = self._cached_events(day) if s.calendars else []
+        templates = self.templates()
+        sensor = (lambda ref: self._sensor_state(ref, s)) if live else None
+        numeric = self.ha.numeric if live else None
+        matches: list[RuleMatch] = []
+        pending: list[RuleMatch] = []
+        for rule in s.rules:
+            ok, why = match_rule(rule, day, events, sensor, numeric)
+            if ok is False:
+                continue
+            t = templates.get(rule.template_id) if rule.template_id else None
+            m = RuleMatch(rule_id=rule.id, rule_name=rule.name, template_id=rule.template_id, template_name=t.name if t else None, why=why)
+            (matches if ok else pending).append(m)
+        return matches, pending
+
+    def _decide(self, day: date, s: Settings, plan: DayPlan | None, *, details: bool = True) -> dict:
+        """How a day's template is chosen. Precedence: the day's own chapters > a manual template choice >
+        the rule that already took the day > (today: nothing more, the default is provisional until a rule
+        takes it; other days: a prediction from calendar and date rules) > the default template."""
+        if plan and plan.chapters is not None:
+            return {"kind": "own", "template_id": None, "reason": "own chapters"}
+        if plan and plan.template_id:
+            return {"kind": "custom", "template_id": plan.template_id, "reason": "chosen for this day"}
+        if plan and plan.decision:
+            d = plan.decision
+            return {
+                "kind": "rule",
+                "template_id": d.template_id,
+                "reason": f"{d.rule_name} · {d.why}" if d.why else d.rule_name,
+                "rule_id": d.rule_id,
+                "rule_name": d.rule_name,
+                "decided": True,
+                "conflicts": [
+                    RuleMatch(rule_id=r, rule_name=next((x.name for x in s.rules if x.id == r), r), template_id=None)
+                    for r in d.matched
+                    if r != d.rule_id
+                ],
+            }
+        today = self.now().date()
+        if day != today:
+            matches, pending = self._match_rules(day, s, live=False)
+            if day < today:
+                pending = []  # a past day's sensors are history; nothing can still take it
+            if matches:
+                m = matches[0]
+                order = [r.id for r in s.rules]
+                pending = [p for p in pending if order.index(p.rule_id) < order.index(m.rule_id)]  # only a higher rule can still win
+                return {
+                    "kind": "rule",
+                    "template_id": m.template_id,
+                    "reason": f"{m.rule_name} · {m.why}",
+                    "rule_id": m.rule_id,
+                    "rule_name": m.rule_name,
+                    "predicted": day > today,
+                    "conflicts": matches[1:],
+                    "pending": pending,
+                }
+            out = {"kind": "default" if s.default_template_id else "none", "template_id": s.default_template_id, "reason": "default"}
+            out["pending"] = pending
+            if day > today:
+                out["predicted"] = True
+            return out
+        # Today: the default is provisional while rules may still take the day.
+        pending: list[RuleMatch] = []
+        if details and self._scan_open(s):
+            _, pending = self._match_rules(day, s, live=False)
+            matches, _ = self._match_rules(day, s, live=True)
+            pending = [p for p in pending if p.rule_id not in {m.rule_id for m in matches}] + matches
+        return {"kind": "default" if s.default_template_id else "none", "template_id": s.default_template_id, "reason": "default", "pending": pending}
+
+    def _scan_open(self, s: Settings, now: datetime | None = None) -> bool:
+        now = now or self.now()
+        return now < at(now.date(), s.rule_scan_until, self.tz)
+
     def _template_kind(self, day: date, s: Settings | None = None, plan: DayPlan | None = None) -> tuple[str, str | None]:
-        """Which template a day follows: ("own", None) for a detached day, ("custom", id) for an explicit
-        per-day choice, ("default", id) on occupied days, ("vacant", id) otherwise, ("none", None) if nothing runs."""
         s = s or self.settings()
         p = plan if plan is not None else self.plan(day)
-        if p and p.chapters is not None:
-            return "own", None
-        if p and p.template_id:
-            return "custom", p.template_id
-        occupied, _ = self._occupancy(day, s, p)
-        tid = s.default_template_id if occupied else s.vacant_template_id
-        if not tid:
-            return "none", None
-        return ("default" if occupied else "vacant"), tid
+        d = self._decide(day, s, p, details=False)
+        return d["kind"], d["template_id"]
 
     def _template_for(self, day: date) -> Template | None:
         _, tid = self._template_kind(day)
@@ -314,6 +391,56 @@ class Engine:
             return None
         raw = self.store.get(KIND_TEMPLATE, tid)
         return Template(**raw) if raw else None
+
+    def _scan_rules(self, day: date, s: Settings, now: datetime) -> bool:
+        """Day-of rule check. If the day is still open (no own chapters, no manual choice, not yet taken by a
+        rule, before the scan cutoff) and a rule matches right now, record the decision on the day plan and
+        apply the rule's extras. Returns True when a rule took the day."""
+        plan = self.plan(day)
+        if plan and (plan.chapters is not None or plan.template_id or plan.decision):
+            return False
+        if not s.rules or not self._scan_open(s, now):
+            return False
+        matches, _ = self._match_rules(day, s, live=True)
+        if not matches:
+            return False
+        m = matches[0]
+        rule = next(r for r in s.rules if r.id == m.rule_id)
+        plan = plan or DayPlan(date=day.isoformat())
+        plan.decision = TemplateDecision(
+            template_id=m.template_id, rule_id=m.rule_id, rule_name=m.rule_name, why=m.why, at=now.isoformat(), matched=[x.rule_id for x in matches]
+        )
+        self._apply_rule_extras(plan, rule)
+        self.store.put(KIND_PLAN, plan.date, plan.model_dump())
+        detail = {"date": plan.date, "rule": rule.id, "template": m.template_id, "why": m.why, "also_matched": [x.rule_name for x in matches[1:]]}
+        tname = m.template_name or ("nothing" if not m.template_id else m.template_id)
+        self._log("info", "rule", f"'{rule.name}' takes {plan.date}: {tname} ({m.why})", detail)
+        if len(matches) > 1:
+            others = ", ".join(x.rule_name for x in matches[1:])
+            self._log("warning", "rule", f"{plan.date}: {len(matches)} rules matched; '{rule.name}' wins. Also: {others}", detail)
+        return True
+
+    @staticmethod
+    def _apply_rule_extras(plan: DayPlan, rule: TemplateRule) -> None:
+        if rule.set_occupied is not None and plan.occupied is None:
+            plan.occupied = rule.set_occupied
+        if rule.auto != "default" and plan.auto == "default":
+            plan.auto = rule.auto
+        if rule.note.strip() and rule.note.strip() not in plan.notes:
+            plan.notes = (plan.notes + "\n" if plan.notes else "") + rule.note.strip()
+
+    async def preview_rule(self, rule: TemplateRule, start: date, end: date) -> list[dict]:
+        """Days in [start, end] the rule would take on its calendar and date conditions alone (live sensor
+        conditions are reported as 'day-of'). Other rules are ignored: this previews the rule by itself."""
+        events = await self.fetch_events(start, end)
+        out: list[dict] = []
+        d = start
+        while d <= end:
+            ok, why = match_rule(rule, d, events.get(d.isoformat(), []))
+            if ok is not False:
+                out.append({"date": d.isoformat(), "why": why, "day_of": ok is None})
+            d = add_days(d, 1)
+        return out
 
     def _lux(self, s: Settings) -> tuple[float | None, float | None]:
         eid = s.sky.lux_entity
@@ -365,28 +492,15 @@ class Engine:
         return self._occupancy(day, s, plan)[0]
 
     def _occupancy(self, day: date, s: Settings, plan: DayPlan | None) -> tuple[bool, str]:
-        """Is there evidence of guests on this day, and where did it come from?
-        Forced (+ button) > calendar keywords > live occupied sensor (today; remembered afterwards).
-        With no calendar and no sensor configured every day counts as occupied."""
+        """Is the day occupied, for variant conditions? Forced in the planner > set by the rule that took the
+        day (recorded on the plan) > occupied whenever a template runs, vacant when nothing does."""
         if plan and plan.occupied is not None:
             return (True, "forced") if plan.occupied else (False, "forced_off")
-        if not s.calendars and not s.occupied_entity:
-            return True, "always"
-        ev = self._cached_events(day) if s.calendars else None
-        if ev:
-            kws = [k.lower() for k in s.calendar_keywords if k.strip()]
-            if not kws or any(any(k in (e.get("summary") or "").lower() for k in kws) for e in ev):
-                return True, "calendar"
-        if s.occupied_entity:
-            key = day.isoformat()
-            if day == self.now().date() and self.ha.is_on(s.occupied_entity):
-                if not self.sensor_days.get(key):
-                    self.sensor_days = {k: v for k, v in self.sensor_days.items() if k >= add_days(day, -14).isoformat()}
-                    self.sensor_days[key] = True
-                    self._persist_runtime()
-                return True, "sensor"
-            if self.sensor_days.get(key):
-                return True, "sensor"
+        kind, tid = self._template_kind(day, s, plan)
+        if kind == "rule":
+            return bool(tid), "rule"
+        if kind == "own" or tid:
+            return True, "template"
         return False, "none"
 
     async def _refresh_calendar(self, day: date) -> None:
@@ -454,6 +568,7 @@ class Engine:
                                 "end": en,
                                 "all_day": all_day,
                                 "location": ev.get("location"),
+                                "description": ev.get("description"),
                             }
                         )
                     d = add_days(d, 1)
@@ -758,6 +873,8 @@ class Engine:
         now = self.now()
         day = now.date()
         await self._refresh_calendar(day)
+        if self._scan_rules(day, s, now):
+            self.exec.cancel_all_fades()
         tmpl, plan, chapters = self._resolve(day, s, with_music=True)
 
         # Senses
@@ -781,13 +898,14 @@ class Engine:
         self.active_hold = self._apply_holds(day, chapters, by_id, now, (ylast, ych_obj, yday) if ylast and ych_obj else None)
 
         # Current chapter: latest started today, else carry over yesterday's last
+        # (A day that runs nothing does not carry: Cadence simply leaves the building alone.)
         current = latest_before(chapters, now)
         carried = False
-        if current is None and ylast is not None:
+        if current is None and ylast is not None and chapters:
             current = ylast
             carried = True
         carry_over = None
-        if ylast is not None:
+        if ylast is not None and chapters:
             first_today = min((datetime.fromisoformat(r.start) for r in chapters if r.enabled and r.start), default=None)
             if first_today is None or first_today > at(day, "00:00", self.tz):
                 carry_over = CarryOver(
@@ -1008,6 +1126,7 @@ class Engine:
     ) -> EngineStatus:
         scenes = self.scenes()
         chosen = [scenes[sid] for sid in (variant.scene_ids if variant else []) if sid in scenes]
+        decision = self._decide(day, s, self.plan(day))
         sun_attrs = (self.ha.states.get("sun.sun") or {}).get("attributes") or {}
         sunrise = sunset = None
         if self.sun:
@@ -1032,6 +1151,8 @@ class Engine:
             date=day.isoformat(),
             template_id=tmpl.id if tmpl else None,
             template_name=tmpl.name if tmpl else None,
+            template_kind=decision["kind"],
+            template_reason=decision["reason"],
             chapter=(
                 {
                     "id": current.chapter_id,
@@ -1111,7 +1232,7 @@ class Engine:
         if plan.chapters is None:
             s = self.settings()
             if force_occupied and not self._occupancy(day, s, plan)[0]:
-                plan.occupied = True  # editing a vacant day is the same as pressing +: copy the guest template
+                plan.occupied = True  # refining a day that runs nothing: it now counts as occupied
                 self.store.put(KIND_PLAN, plan.date, plan.model_dump())
             chapters, keep = self._snapshot_chapters(day, plan)
             plan.chapters = chapters
@@ -1123,13 +1244,15 @@ class Engine:
         return plan
 
     def reset_day(self, day: date) -> DayPlan | None:
-        """Drop a day's own chapters and tweaks so it follows its template again. Keeps occupancy, auto, notes."""
+        """Drop a day's own chapters, tweaks and any rule decision so rules and the default decide it again.
+        Keeps occupancy, auto, notes."""
         plan = self.plan(day)
         if not plan:
             return None
         plan.chapters = None
         plan.extra_chapters = []
         plan.chapter_overrides = []
+        plan.decision = None
         if self._plan_is_empty(plan):
             self.store.delete(KIND_PLAN, plan.date)
             plan = None
@@ -1186,6 +1309,7 @@ class Engine:
             and p.auto == "default"
             and p.occupied is None
             and not p.notes
+            and p.decision is None
         )
 
     # ------------------------------------------------------------------ planner support
@@ -1205,13 +1329,13 @@ class Engine:
             carry = None
             _, _, ych = self._resolve(add_days(d, -1), s)
             ystarted = [r for r in ych if r.enabled and (r.start or r.nominal)]
-            if ystarted:
+            if ystarted and chapters:
                 yl = ystarted[-1]
                 first = min((datetime.fromisoformat(r.start or r.nominal) for r in chapters if r.enabled), default=None)
                 if first is None or first > at(d, "00:00", self.tz):
                     carry = CarryOver(chapter_id=yl.chapter_id, name=yl.name, color=yl.color, until=first.isoformat() if first else None)
             occ, why = self._occupancy(d, s, plan)
-            kind, _ = self._template_kind(d, s, plan)
+            dec = self._decide(d, s, plan)
             out.append(
                 DayView(
                     date=d.isoformat(),
@@ -1224,7 +1348,14 @@ class Engine:
                     occupied=occ,
                     occupied_reason=why,  # type: ignore[arg-type]
                     detached=bool(plan and plan.chapters is not None),
-                    template_kind=kind,  # type: ignore[arg-type]
+                    template_kind=dec["kind"],
+                    template_reason=dec["reason"],
+                    rule_id=dec.get("rule_id"),
+                    rule_name=dec.get("rule_name"),
+                    decided=bool(dec.get("decided")),
+                    predicted=bool(dec.get("predicted")),
+                    conflicts=dec.get("conflicts", []),
+                    pending_rules=dec.get("pending", []),
                     events=events.get(d.isoformat(), []),
                     sunrise=sr.isoformat() if sr else None,
                     sunset=ss.isoformat() if ss else None,

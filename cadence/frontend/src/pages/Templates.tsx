@@ -2,21 +2,22 @@ import { useEffect, useState } from "react";
 import { api, describeStart, slug } from "../api";
 import { defaultStart } from "../components/StartEditor";
 import { ChapterEditor } from "../components/ChapterEditor";
-import { COLORS, Confirm, toast } from "../components/ui";
-import type { CadenceScene, Chapter, Settings, Template } from "../types";
+import { RuleEditor, describeCondition, emptyRule } from "../components/RuleEditor";
+import { COLORS, ColorDots, Confirm, toast } from "../components/ui";
+import type { CadenceScene, Chapter, Settings, Template, TemplateRule } from "../types";
 
 export function Templates() {
   const [list, setList] = useState<Template[]>([]);
   const [scenes, setScenes] = useState<CadenceScene[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
-  const [sel, setSel] = useState<string | null>(null);
+  const [sel, setSel] = useState<string | null>(null); // "t:<id>" or "r:<id>"
 
   const reload = async () => {
     const [t, s, st] = await Promise.all([api.get<Template[]>("api/templates"), api.get<CadenceScene[]>("api/scenes"), api.get<Settings>("api/settings")]);
     setList(t);
     setScenes(s);
     setSettings(st);
-    setSel((cur) => cur ?? st.default_template_id ?? t[0]?.id ?? null);
+    setSel((cur) => cur ?? (st.default_template_id ? "t:" + st.default_template_id : t[0] ? "t:" + t[0].id : null));
   };
   useEffect(() => {
     reload().catch((e) => toast(e.message, true));
@@ -27,17 +28,32 @@ export function Templates() {
     if (!name) return;
     let id = slug(name);
     if (list.some((t) => t.id === id)) id += "_" + Date.now().toString(36);
-    await api.put(`api/templates/${id}`, { id, name, description: "", chapters: [] });
+    await api.put(`api/templates/${id}`, { id, name, description: "", color: COLORS[list.length % COLORS.length], chapters: [] });
     await reload();
-    setSel(id);
+    setSel("t:" + id);
   };
   const duplicate = async (t: Template) => {
     const id = slug(t.name + " copy") + "_" + Date.now().toString(36);
     await api.put(`api/templates/${id}`, { ...t, id, name: t.name + " (copy)" });
     await reload();
-    setSel(id);
+    setSel("t:" + id);
   };
-  const current = list.find((t) => t.id === sel) ?? null;
+  const saveRules = async (rules: TemplateRule[]) => {
+    if (!settings) return;
+    const r = await api.put<Settings>("api/settings", { ...settings, rules });
+    setSettings(r);
+  };
+  const createRule = async () => {
+    const name = window.prompt("Rule name", "Camp week");
+    if (!name || !settings) return;
+    let id = slug(name);
+    if (settings.rules.some((r) => r.id === id)) id += "_" + Date.now().toString(36);
+    await saveRules([...settings.rules, emptyRule(id, name, settings.default_template_id ?? list[0]?.id ?? null)]);
+    setSel("r:" + id);
+  };
+  const current = sel?.startsWith("t:") ? list.find((t) => t.id === sel.slice(2)) ?? null : null;
+  const currentRule = sel?.startsWith("r:") ? settings?.rules.find((r) => r.id === sel.slice(2)) ?? null : null;
+  const ruleIndex = currentRule && settings ? settings.rules.indexOf(currentRule) : -1;
 
   return (
     <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-[300px_1fr]">
@@ -52,19 +68,76 @@ export function Templates() {
         <ul className="menu w-full rounded-box border border-base-300 bg-base-100 p-1">
           {list.map((t) => (
             <li key={t.id}>
-              <button className={"flex-col items-start gap-0 " + (t.id === sel ? "menu-active" : "")} onClick={() => setSel(t.id)}>
-                <span className="flex items-center gap-2">
-                  {t.name} {settings?.default_template_id === t.id ? <span className="badge badge-xs badge-accent badge-soft">default</span> : null}
-                </span>
-                <span className="text-[11px] opacity-60">
-                  {t.chapters.length} chapter{t.chapters.length === 1 ? "" : "s"}
+              <button className={"t:" + t.id === sel ? "menu-active" : ""} onClick={() => setSel("t:" + t.id)}>
+                <span className="flex w-full min-w-0 flex-col items-start">
+                  <span className="flex items-center gap-2">
+                    <span className="swatch" style={{ background: t.color ?? "#556" }} />
+                    {t.name} {settings?.default_template_id === t.id ? <span className="badge badge-xs badge-accent badge-soft">default</span> : null}
+                  </span>
+                  <span className="text-[11px] opacity-60">
+                    {t.chapters.length} chapter{t.chapters.length === 1 ? "" : "s"}
+                  </span>
                 </span>
               </button>
             </li>
           ))}
         </ul>
+
+        <div className="mt-2 flex items-center justify-between">
+          <h2 className="display text-2xl">Rules</h2>
+          <button className="btn btn-sm btn-primary" onClick={() => createRule().catch((e) => toast(e.message, true))}>
+            + New
+          </button>
+        </div>
+        <p className="text-xs opacity-60">
+          Rules apply a template to days automatically: from the calendar, the date, or a sensor on the day itself. Checked top to bottom, first match wins. Days nothing takes run the default template{settings?.default_template_id ? "" : " — none is set, so they run nothing"}.
+        </p>
+        <ul className="menu w-full rounded-box border border-base-300 bg-base-100 p-1">
+          {(settings?.rules ?? []).map((r, i) => {
+            const t = list.find((x) => x.id === r.template_id);
+            return (
+              <li key={r.id}>
+                <button className={("r:" + r.id === sel ? "menu-active" : "") + (r.enabled ? "" : " opacity-50")} onClick={() => setSel("r:" + r.id)}>
+                  <span className="flex w-full min-w-0 flex-col items-start">
+                    <span className="flex items-center gap-2">
+                      <span className="font-mono text-[10px] opacity-50">{i + 1}</span>
+                      <span className="swatch" style={{ background: t?.color ?? "#556" }} />
+                      {r.name}
+                      {!r.enabled ? <span className="badge badge-xs badge-ghost">paused</span> : null}
+                    </span>
+                    <span className="w-full truncate text-[11px] opacity-60">
+                      → {r.template_id ? t?.name ?? r.template_id : "nothing"} · {r.conditions.length ? r.conditions.map(describeCondition).join(" & ") : "every day"}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+          {settings && settings.rules.length === 0 ? <li className="px-3 py-2 text-xs opacity-50">No rules yet.</li> : null}
+        </ul>
       </div>
-      {current && settings ? (
+      {currentRule && settings ? (
+        <RuleEditor
+          key={currentRule.id}
+          rule={currentRule}
+          templates={list}
+          calendars={settings.calendars}
+          index={ruleIndex}
+          total={settings.rules.length}
+          onSave={(r) => saveRules(settings.rules.map((x) => (x.id === r.id ? r : x)))}
+          onDelete={async () => {
+            await saveRules(settings.rules.filter((x) => x.id !== currentRule.id));
+            setSel(null);
+          }}
+          onMove={async (dir) => {
+            const arr = [...settings.rules];
+            const j = ruleIndex + dir;
+            if (j < 0 || j >= arr.length) return;
+            [arr[ruleIndex], arr[j]] = [arr[j], arr[ruleIndex]];
+            await saveRules(arr);
+          }}
+        />
+      ) : current && settings ? (
         <TemplateEditor
           key={current.id}
           template={current}
@@ -79,7 +152,7 @@ export function Templates() {
           }}
         />
       ) : (
-        <div className="flex h-40 items-center justify-center rounded-box border border-dashed border-base-300 opacity-60">Select or create a template.</div>
+        <div className="flex h-40 items-center justify-center rounded-box border border-dashed border-base-300 opacity-60">Select or create a template or rule.</div>
       )}
     </div>
   );
@@ -107,7 +180,7 @@ function TemplateEditor(props: { template: Template; scenes: CadenceScene[]; set
     try {
       await api.put("api/settings", { ...props.settings, default_template_id: t.id });
       await props.onSaved();
-      toast(`${t.name} is now the default day`);
+      toast(`${t.name} now runs on every day no rule takes`);
     } catch (e) {
       toast((e as Error).message, true);
     }
@@ -156,11 +229,11 @@ function TemplateEditor(props: { template: Template; scenes: CadenceScene[]; set
             <input type="text" className="input display flex-1 text-2xl" value={t.name} onChange={(e) => setT({ ...t, name: e.target.value })} />
             <div className="flex items-center gap-2">
               {!props.isDefault ? (
-                <button className="btn btn-sm btn-outline btn-accent" onClick={makeDefault}>
+                <button className="btn btn-sm btn-outline btn-accent" onClick={makeDefault} title="Run this template on every day no rule or manual choice takes">
                   Make default
                 </button>
               ) : (
-                <span className="badge badge-accent badge-soft">default day</span>
+                <span className="badge badge-accent badge-soft" title="Runs on every day no rule or manual choice takes">default</span>
               )}
               <button className="btn btn-sm btn-ghost" onClick={props.onDuplicate}>
                 Duplicate
@@ -173,6 +246,10 @@ function TemplateEditor(props: { template: Template; scenes: CadenceScene[]; set
             </div>
           </div>
           <textarea className="textarea textarea-sm w-full" value={t.description} onChange={(e) => setT({ ...t, description: e.target.value })} placeholder="What kind of day is this?" />
+          <div className="flex flex-wrap items-center gap-3 text-xs">
+            <span className="opacity-60">Colour in the planner</span>
+            <ColorDots value={t.color} onChange={(c) => setT({ ...t, color: c })} />
+          </div>
         </div>
       </div>
 

@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
 from ..engine.engine import KIND_PLAN, KIND_SCENE, KIND_TEMPLATE, Engine
-from ..models import CadenceScene, DayPlan, Settings, Template
+from ..models import CadenceScene, DayPlan, Settings, Template, TemplateRule
 from ..seed import available_seeds, load_seed
 
 
@@ -33,6 +33,12 @@ class OccupiedBody(BaseModel):
 class CopyBody(BaseModel):
     source: str
     targets: list[str]
+
+
+class RulePreviewBody(BaseModel):
+    rule: TemplateRule
+    start: str
+    end: str
 
 
 def _day(s: str) -> date:
@@ -124,7 +130,21 @@ def build_router(engine: Engine) -> APIRouter:
         s = engine.settings()
         if s.default_template_id == template_id:
             raise HTTPException(409, "cannot delete the default template")
+        used = [rule.name for rule in s.rules if rule.template_id == template_id]
+        if used:
+            raise HTTPException(409, "template is used by rule(s): " + ", ".join(used))
         return {"deleted": store.delete(KIND_TEMPLATE, template_id)}
+
+    # ---------------------------------------------------------------- template rules
+    @r.post("/rules/preview")
+    async def preview_rule(body: RulePreviewBody) -> dict:
+        """Which days in a range the rule would take, judged on calendar and date conditions alone."""
+        s, e = _day(body.start), _day(body.end)
+        if e < s:
+            raise HTTPException(400, "end before start")
+        if (e - s) > timedelta(days=366):
+            raise HTTPException(400, "range too large (max 366 days)")
+        return {"matches": await engine.preview_rule(body.rule, s, e), "live": body.rule.live}
 
     # ---------------------------------------------------------------- day plans
     @r.get("/plans/{day}")

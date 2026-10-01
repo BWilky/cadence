@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.3.0
+
+- Template rules: apply a template to days automatically from the calendar (title / location /
+  description contains, exact or regex; all-day or timed; per calendar; or "no event"), days of
+  the week, date ranges (absolute or recurring every year), a binary sensor or sensor group, or a
+  numeric sensor above / below a value. Rules have a validity window and can set the day's
+  occupancy, auto mode and a note. Checked top to bottom, first match wins; the planner flags days
+  where more than one rule matched.
+- One default template runs on any day no rule or manual choice takes (or nothing). Today's
+  default is provisional: sensor rules keep checking until a cut-off time and the first to match
+  takes the day, recording the decision on that date so later changes don't flip it.
+- Templates have a colour; planner columns are tinted by the template that runs, headed by how it
+  was chosen (rule, chosen, default), italic for predicted future days. Day pane shows the
+  deciding rule and an Undo; rules editor with a 90-day preview on the Templates page; tablet
+  shows the template name.
+- Removed the guest-day / vacant-day templates, calendar keywords and occupied-sensor settings;
+  existing installs are migrated into equivalent rules on first start.
+- A day that runs nothing no longer carries the previous day's last chapter forward.
+
 ## 0.2.3
 
 - Fainter drag handles on chapter tiles; only the handle in use shows while dragging.

@@ -157,6 +157,7 @@ export function Tablet({ live, query }: { live: Live; query: URLSearchParams }) 
             <div className="eyebrow">
               Now {chip ? <span className={"tchip " + (chip.cls === "auto" ? "live" : chip.cls)}>{chip.text}</span> : null}
               {st?.variant ? <span className="tchip">{st.variant.label}</span> : null}
+              {st?.template_name ? <span className="tchip" title={st.template_reason ?? ""}>{st.template_name}</span> : null}
             </div>
             <h1 className="name">{st ? st.chapter?.name ?? "Nothing scheduled" : "Connecting…"}</h1>
             <div className="next">

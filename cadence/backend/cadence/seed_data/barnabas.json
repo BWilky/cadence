@@ -952,11 +952,47 @@
     "site_name": "Barnabas Light Story",
     "spotify_entity": "media_player.spotifyplus_the_station",
     "sensor_groups": [
-      {"id": "coffee_bar", "name": "Coffee bar area", "mode": "any", "description": "Anyone at the coffee bar or in the pantry", "entities": ["binary_sensor.station_coffee_bar_motion_occupancy", "binary_sensor.pantry_occupancy", "binary_sensor.front_foyer_occupancy"]},
-      {"id": "lounge_dining", "name": "Lounge & dining occupied", "mode": "any", "description": "Late-night crowd still around", "entities": ["binary_sensor.lounge_occupancy_2", "binary_sensor.lounge_south_occupancy", "binary_sensor.dining_room_occupancy", "binary_sensor.stationmotion_bar_occupancy"]},
-      {"id": "common_floor", "name": "Common floor", "mode": "any", "description": "Any movement on the main floor", "entities": ["binary_sensor.lounge_occupancy_2", "binary_sensor.dining_room_occupancy", "binary_sensor.front_foyer_occupancy", "binary_sensor.office_occupancy_2", "binary_sensor.meeting_room_occupancy", "binary_sensor.store_occupancy", "binary_sensor.station_library_occupancy", "binary_sensor.station_coffee_bar_motion_occupancy"]}
+      {
+        "id": "coffee_bar",
+        "name": "Coffee bar area",
+        "mode": "any",
+        "description": "Anyone at the coffee bar or in the pantry",
+        "entities": [
+          "binary_sensor.station_coffee_bar_motion_occupancy",
+          "binary_sensor.pantry_occupancy",
+          "binary_sensor.front_foyer_occupancy"
+        ]
+      },
+      {
+        "id": "lounge_dining",
+        "name": "Lounge & dining occupied",
+        "mode": "any",
+        "description": "Late-night crowd still around",
+        "entities": [
+          "binary_sensor.lounge_occupancy_2",
+          "binary_sensor.lounge_south_occupancy",
+          "binary_sensor.dining_room_occupancy",
+          "binary_sensor.stationmotion_bar_occupancy"
+        ]
+      },
+      {
+        "id": "common_floor",
+        "name": "Common floor",
+        "mode": "any",
+        "description": "Any movement on the main floor",
+        "entities": [
+          "binary_sensor.lounge_occupancy_2",
+          "binary_sensor.dining_room_occupancy",
+          "binary_sensor.front_foyer_occupancy",
+          "binary_sensor.office_occupancy_2",
+          "binary_sensor.meeting_room_occupancy",
+          "binary_sensor.store_occupancy",
+          "binary_sensor.station_library_occupancy",
+          "binary_sensor.station_coffee_bar_motion_occupancy"
+        ]
+      }
     ],
-    "default_template_id": "standard_day",
+    "default_template_id": null,
     "auto_source": "either",
     "auto_schedule": {
       "windows": {
@@ -1007,7 +1043,6 @@
     "auto_entity": null,
     "motion_entity": "binary_sensor.station_motion_common_floor",
     "asleep_entity": null,
-    "occupied_entity": "input_boolean.propertyoccupied",
     "sky": {
       "lux_entity": "sensor.lux",
       "weather_entity": "weather.barnabas",
@@ -1019,13 +1054,6 @@
       "stale_minutes": 30
     },
     "calendars": [],
-    "calendar_keywords": [
-      "retreat",
-      "booking",
-      "group",
-      "wedding",
-      "event"
-    ],
     "zones": [
       {
         "id": "cupola",
@@ -1070,6 +1098,44 @@
     ],
     "dry_run": false,
     "override_grace_seconds": 120,
-    "hold_mode": "next_chapter"
+    "hold_mode": "next_chapter",
+    "rules": [
+      {
+        "id": "guests_on_calendar",
+        "name": "Guests on the calendar",
+        "enabled": true,
+        "template_id": "standard_day",
+        "conditions": [
+          {
+            "kind": "calendar",
+            "match": "contains",
+            "terms": [
+              "retreat",
+              "booking",
+              "group",
+              "wedding",
+              "event"
+            ]
+          }
+        ],
+        "set_occupied": true,
+        "note": ""
+      },
+      {
+        "id": "occupied_sensor",
+        "name": "Property occupied",
+        "enabled": true,
+        "template_id": "standard_day",
+        "conditions": [
+          {
+            "kind": "entity",
+            "entity_id": "input_boolean.propertyoccupied",
+            "state": "on"
+          }
+        ],
+        "set_occupied": true,
+        "note": ""
+      }
+    ]
   }
 }
