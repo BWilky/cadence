@@ -1,6 +1,24 @@
+import { mdiCheck, mdiChevronDown, mdiClose, mdiLoading, mdiMagnify } from "@mdi/js";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api";
 import type { HAEntity } from "../types";
+
+/* ----------------------------------------------------------------------------
+   Sheet-style primitives. Class names mirror the Lamplighter sheets on the
+   Home Assistant dashboards (section, act, row, chip, pill-btn, toggle, slider…)
+   so the planner reads as the same family. Styles live in styles.css.
+   -------------------------------------------------------------------------- */
+
+// ------------------------------------------------------------------ icons
+/** A Material Design Icon from @mdi/js, rendered like ha-icon. */
+export function Icon({ path, size, className, title }: { path: string; size?: "xs" | "sm" | "md" | "lg"; className?: string; title?: string }) {
+  return (
+    <svg className={"icon " + (size && size !== "md" ? size + " " : "") + (className ?? "")} viewBox="0 0 24 24" aria-hidden={title ? undefined : true} role={title ? "img" : undefined}>
+      {title ? <title>{title}</title> : null}
+      <path d={path} />
+    </svg>
+  );
+}
 
 // ------------------------------------------------------------------ toast
 let toastListener: ((t: { text: string; err?: boolean } | null) => void) | null = null;
@@ -22,10 +40,268 @@ export function Toaster() {
   }, [t]);
   if (!t) return null;
   return (
-    <div className="toast toast-center toast-bottom z-[100]">
-      <div className={"alert alert-soft " + (t.err ? "alert-error" : "alert-success")}>
-        <span>{t.text}</span>
-      </div>
+    <div className={"toast" + (t.err ? " err" : "")} role="status">
+      {t.text}
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------ layout
+/** Page frame inside the app shell: title row + scrolling body. */
+export function Page(props: { title: React.ReactNode; icon?: string; actions?: React.ReactNode; children: React.ReactNode; flush?: boolean; narrow?: boolean; className?: string }) {
+  return (
+    <>
+      <header className="content-head">
+        {props.icon ? <Icon path={props.icon} className="muted" /> : null}
+        <h2>{props.title}</h2>
+        {props.actions}
+      </header>
+      <div className={"body" + (props.flush ? " flush" : "") + (props.className ? " " + props.className : "")}>{props.narrow ? <div className="narrow">{props.children}</div> : props.children}</div>
+    </>
+  );
+}
+
+/** Tinted block with an optional icon + title head line, like the sheets' sections. */
+export function Section(props: { icon?: string; title?: React.ReactNode; count?: React.ReactNode; intro?: React.ReactNode; actions?: React.ReactNode; tint?: "danger" | "accent" | "warn" | "ok"; className?: string; children?: React.ReactNode; style?: React.CSSProperties }) {
+  return (
+    <div className={"section" + (props.tint ? ` ${props.tint}-tint` : "") + (props.className ? " " + props.className : "")} style={props.style}>
+      {props.title || props.icon || props.actions ? (
+        <div className="sec-head">
+          {props.icon ? <Icon path={props.icon} /> : null}
+          <span className="t">{props.title}</span>
+          {props.count != null ? <span className="count">{props.count}</span> : null}
+          {props.actions}
+        </div>
+      ) : null}
+      {props.intro ? <p className="help">{props.intro}</p> : null}
+      {props.children}
+    </div>
+  );
+}
+
+/** Icon + title + subtitle action tile. */
+export function Act(props: { icon: string; title: React.ReactNode; sub?: React.ReactNode; onClick?: () => void; disabled?: boolean; on?: boolean; danger?: boolean; busy?: boolean; inline?: boolean; className?: string; title_attr?: string }) {
+  return (
+    <button
+      type="button"
+      className={"act" + (props.on ? " on" : "") + (props.danger ? " danger" : "") + (props.busy ? " busy" : "") + (props.inline ? " inline" : "") + (props.className ? " " + props.className : "")}
+      onClick={props.onClick}
+      disabled={props.disabled}
+      title={props.title_attr}
+    >
+      <Icon path={props.busy ? mdiLoading : props.icon} />
+      {props.danger ? (
+        <span>{props.title}</span>
+      ) : props.inline ? (
+        <span className="act-text">
+          <span className="act-title">{props.title}</span>
+          {props.sub ? <span className="act-sub">{props.sub}</span> : null}
+        </span>
+      ) : (
+        <>
+          <span className="act-title">{props.title}</span>
+          {props.sub ? <span className="act-sub">{props.sub}</span> : null}
+        </>
+      )}
+    </button>
+  );
+}
+
+/** Icon tile + title/sub + optional right-hand content. */
+export function Row(props: { icon?: string; tone?: "on" | "ok" | "warn" | "bad"; title: React.ReactNode; sub?: React.ReactNode; right?: React.ReactNode; onClick?: () => void; compact?: boolean; className?: string; title_attr?: string }) {
+  const inner = (
+    <>
+      {props.icon ? (
+        <span className={"row-icon" + (props.tone ? " " + props.tone : "") + (props.compact ? " sm" : "")}>
+          <Icon path={props.icon} />
+        </span>
+      ) : null}
+      <span className="row-text">
+        <span className="row-title">{props.title}</span>
+        {props.sub ? <span className="row-sub">{props.sub}</span> : null}
+      </span>
+      {props.right}
+    </>
+  );
+  const cls = "row" + (props.compact ? " compact" : "") + (props.className ? " " + props.className : "");
+  if (props.onClick)
+    return (
+      <button type="button" className={cls + " clickable"} onClick={props.onClick} title={props.title_attr}>
+        {inner}
+      </button>
+    );
+  return (
+    <div className={cls} title={props.title_attr}>
+      {inner}
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------ buttons
+export function Btn(props: { children: React.ReactNode; onClick?: () => void; variant?: "default" | "primary" | "danger" | "ghost" | "on"; sm?: boolean; icon?: string; disabled?: boolean; title?: string; className?: string; type?: "button" | "submit" }) {
+  return (
+    <button type={props.type ?? "button"} className={"pill-btn" + (props.variant && props.variant !== "default" ? " " + props.variant : "") + (props.sm ? " sm" : "") + (props.className ? " " + props.className : "")} onClick={props.onClick} disabled={props.disabled} title={props.title}>
+      {props.icon ? <Icon path={props.icon} /> : null}
+      {props.children}
+    </button>
+  );
+}
+
+export function IconBtn(props: { icon: string; label: string; onClick?: () => void; size?: "sm" | "xs"; soft?: boolean; danger?: boolean; disabled?: boolean; spin?: boolean; className?: string }) {
+  return (
+    <button type="button" className={"icon-btn" + (props.size ? " " + props.size : "") + (props.soft ? " soft" : "") + (props.danger ? " danger" : "") + (props.className ? " " + props.className : "")} onClick={props.onClick} disabled={props.disabled} aria-label={props.label} title={props.label}>
+      <Icon path={props.icon} className={props.spin ? "spin" : undefined} />
+    </button>
+  );
+}
+
+/** Press once to arm, again (within 3.5 s) to run. */
+export function Confirm(props: { text: string; onYes: () => void; children: React.ReactNode; className?: string; icon?: string; iconOnly?: boolean; sm?: boolean; disabled?: boolean }) {
+  const [arm, setArm] = useState(false);
+  useEffect(() => {
+    if (!arm) return;
+    const id = window.setTimeout(() => setArm(false), 3500);
+    return () => window.clearTimeout(id);
+  }, [arm]);
+  const go = () => {
+    if (arm) {
+      setArm(false);
+      props.onYes();
+    } else setArm(true);
+  };
+  if (props.iconOnly && props.icon)
+    return (
+      <button type="button" className={"icon-btn danger " + (props.sm ? "sm " : "") + (arm ? "armed " : "") + (props.className ?? "")} onClick={go} disabled={props.disabled} aria-label={arm ? props.text : String(props.children)} title={arm ? props.text : undefined}>
+        <Icon path={arm ? mdiCheck : props.icon} />
+      </button>
+    );
+  return (
+    <button type="button" className={(props.className ?? "pill-btn danger") + (props.sm ? " sm" : "") + (arm ? " armed" : "")} onClick={go} disabled={props.disabled}>
+      {props.icon && !arm ? <Icon path={props.icon} /> : null}
+      {arm ? props.text : props.children}
+    </button>
+  );
+}
+
+/** Pill-style toggle used for variants, conditions and scene membership. */
+export function Chip(props: { active?: boolean; auto?: boolean; onClick?: () => void; children: React.ReactNode; title?: string; disabled?: boolean; icon?: string; tone?: "on" | "ok" | "warn" | "attn"; sm?: boolean; className?: string }) {
+  const cls = "chip" + (props.active ? " " + (props.tone ?? "on") : props.tone && !props.onClick ? " " + props.tone : "") + (props.auto ? " dashed" : "") + (props.sm ? " sm" : "") + (props.className ? " " + props.className : "");
+  if (!props.onClick)
+    return (
+      <span className={cls} title={props.title}>
+        {props.icon ? <Icon path={props.icon} /> : null}
+        {props.children}
+      </span>
+    );
+  return (
+    <button type="button" className={cls} title={props.title} disabled={props.disabled} onClick={props.onClick} aria-pressed={props.active}>
+      {props.icon ? <Icon path={props.icon} /> : null}
+      {props.children}
+    </button>
+  );
+}
+export const Pill = Chip;
+
+/** Segmented control. */
+export function Segmented<T extends string>(props: { value: T; options: { value: T; label: React.ReactNode; icon?: string; disabled?: boolean; title?: string }[]; onChange: (v: T) => void; sm?: boolean; fit?: boolean; disabled?: boolean; className?: string }) {
+  return (
+    <div className={"tabs" + (props.sm ? " sm" : "") + (props.fit ? " fit" : "") + (props.className ? " " + props.className : "")} role="tablist">
+      {props.options.map((o) => (
+        <button key={o.value} type="button" role="tab" aria-selected={o.value === props.value} className={"tab" + (o.value === props.value ? " on" : "")} disabled={props.disabled || o.disabled} title={o.title} onClick={() => props.onChange(o.value)}>
+          {o.icon ? <Icon path={o.icon} size="sm" /> : null}
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------ toggle + slider
+export function Switch(props: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean; color?: "warn" | "ok"; sm?: boolean; label?: string }) {
+  return (
+    <button type="button" role="switch" aria-checked={props.checked} aria-label={props.label} className={"toggle" + (props.checked ? " on" : "") + (props.color ? " " + props.color : "") + (props.sm ? " sm" : "")} disabled={props.disabled} onClick={() => props.onChange(!props.checked)}>
+      <span className="knob" />
+    </button>
+  );
+}
+
+/** Labelled switch row: title + help on the left, switch on the right. */
+export function Toggle(props: { checked: boolean; onChange: (v: boolean) => void; label: React.ReactNode; help?: React.ReactNode; color?: "warn" | "ok"; disabled?: boolean; icon?: string; tone?: "on" | "ok" | "warn" | "bad" }) {
+  return (
+    <div className="row toggle-row">
+      {props.icon ? (
+        <span className={"row-icon sm" + (props.tone ? " " + props.tone : props.checked ? " on" : "")}>
+          <Icon path={props.icon} />
+        </span>
+      ) : null}
+      <span className="row-text">
+        <span className="row-title">{props.label}</span>
+        {props.help ? <span className="row-sub">{props.help}</span> : null}
+      </span>
+      <Switch checked={props.checked} onChange={props.onChange} disabled={props.disabled} color={props.color} label={typeof props.label === "string" ? props.label : undefined} />
+    </div>
+  );
+}
+
+/** Tile-card style slider (drag anywhere; commits on release). */
+export function Slider(props: { value: number; min?: number; max?: number; step?: number; onChange: (v: number) => void; onInput?: (v: number) => void; disabled?: boolean; label: string; sm?: boolean; color?: string; className?: string }) {
+  const min = props.min ?? 0;
+  const max = props.max ?? 100;
+  const step = props.step ?? 1;
+  const [drag, setDrag] = useState<number | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+  const shown = drag ?? props.value;
+  const pct = max > min ? Math.max(0, Math.min(1, (shown - min) / (max - min))) : 0;
+  const valAt = (clientX: number) => {
+    const r = ref.current!.getBoundingClientRect();
+    const f = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+    const v = Math.round((min + f * (max - min)) / step) * step;
+    return Math.min(max, Math.max(min, Number(v.toFixed(6))));
+  };
+  return (
+    <div
+      ref={ref}
+      className={"slider" + (props.sm ? " sm" : "") + (props.disabled ? " disabled" : "") + (drag != null ? " dragging" : "") + (props.className ? " " + props.className : "")}
+      style={props.color ? ({ "--c": props.color } as React.CSSProperties) : undefined}
+      role="slider"
+      aria-label={props.label}
+      aria-valuemin={min}
+      aria-valuemax={max}
+      aria-valuenow={shown}
+      tabIndex={props.disabled ? -1 : 0}
+      onKeyDown={(e) => {
+        if (props.disabled) return;
+        const d = e.key === "ArrowRight" || e.key === "ArrowUp" ? step : e.key === "ArrowLeft" || e.key === "ArrowDown" ? -step : 0;
+        if (d) {
+          e.preventDefault();
+          props.onChange(Math.min(max, Math.max(min, Number((props.value + d).toFixed(6)))));
+        }
+      }}
+      onPointerDown={(e) => {
+        if (props.disabled) return;
+        e.preventDefault();
+        e.currentTarget.setPointerCapture(e.pointerId);
+        const v = valAt(e.clientX);
+        setDrag(v);
+        props.onInput?.(v);
+      }}
+      onPointerMove={(e) => {
+        if (drag == null) return;
+        const v = valAt(e.clientX);
+        if (v !== drag) {
+          setDrag(v);
+          props.onInput?.(v);
+        }
+      }}
+      onPointerUp={(e) => {
+        if (drag == null) return;
+        const v = valAt(e.clientX);
+        setDrag(null);
+        props.onChange(v);
+      }}
+      onPointerCancel={() => setDrag(null)}
+    >
+      <div className={"fill" + (pct <= 0 ? " empty" : "")} style={{ "--v": pct } as React.CSSProperties} />
     </div>
   );
 }
@@ -87,19 +363,13 @@ export function EntityPicker(props: {
     setQ("");
     setOpen(false);
   };
-  const sz = props.size === "md" ? "" : " input-sm";
   return (
     <div className="relative w-full" ref={ref}>
-      <label className={"input w-full" + sz}>
-        <svg className="h-[1em] opacity-50" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-          <g strokeLinejoin="round" strokeLinecap="round" strokeWidth="2.5" fill="none" stroke="currentColor">
-            <circle cx="11" cy="11" r="8"></circle>
-            <path d="m21 21-4.3-4.3"></path>
-          </g>
-        </svg>
+      <div className="search">
+        <Icon path={mdiMagnify} />
         <input
           type="search"
-          className="grow"
+          className={"input" + (props.size === "md" ? "" : " sm")}
           placeholder={props.placeholder ?? (props.domain ? `Search ${props.domain}.* …` : "Search entities…")}
           value={open ? q : current ? `${current.name}` : props.value ?? ""}
           onFocus={() => {
@@ -118,41 +388,41 @@ export function EntityPicker(props: {
           }}
         />
         {props.allowClear !== false && props.value ? (
-          <button type="button" className="btn btn-ghost btn-xs btn-circle" title="Clear" onMouseDown={(e) => e.preventDefault()} onClick={() => props.onChange(null)}>
-            ✕
+          <button type="button" className="icon-btn xs clear" title="Clear" aria-label="Clear" onMouseDown={(e) => e.preventDefault()} onClick={() => props.onChange(null)}>
+            <Icon path={mdiClose} />
           </button>
         ) : null}
-      </label>
-      {props.value && !open ? <div className="mt-0.5 font-mono text-[11px] opacity-60 truncate">{props.value}</div> : null}
+      </div>
+      {props.value && !open ? <div className="mono mt-1 truncate text-[11px] muted">{props.value}</div> : null}
       {open ? (
-        <ul className="menu menu-sm absolute left-0 right-0 top-full z-50 mt-1 max-h-64 flex-nowrap overflow-y-auto rounded-box border border-base-300 bg-base-100 shadow-xl">
-          {results.length === 0 ? <li className="menu-title">No matches{all.length === 0 ? " (is Home Assistant connected?)" : ""}</li> : null}
+        <div className="menu absolute left-0 right-0 top-full z-50 mt-1" style={{ maxHeight: 280 }}>
+          {results.length === 0 ? <div className="menu-title">No matches{all.length === 0 ? " (is Home Assistant connected?)" : ""}</div> : null}
           {results.map((e, i) => (
-            <li key={e.entity_id}>
-              <button type="button" className={"flex flex-col items-start gap-0 " + (i === hl ? "menu-active" : "")} onMouseDown={() => pick(e)}>
-                <span className="flex w-full items-center gap-2">
-                  <span className="truncate">{e.name}</span>
-                  <span className="ml-auto font-mono text-[11px] text-accent">{e.state}</span>
-                </span>
-                <span className="font-mono text-[11px] opacity-60">
+            <button type="button" key={e.entity_id} className={"menu-item" + (i === hl ? " hl" : "")} onMouseDown={() => pick(e)}>
+              <span className="mt">
+                <span>{e.name}</span>
+                <small className="mono">
                   {e.entity_id}
                   {e.keypad ? ` · ${e.keypad}` : ""}
-                </span>
-              </button>
-            </li>
+                </small>
+              </span>
+              <span className="hint" style={{ color: "var(--accent)" }}>
+                {e.state}
+              </span>
+            </button>
           ))}
-        </ul>
+        </div>
       ) : null}
     </div>
   );
 }
 
 // ------------------------------------------------------------------ small inputs
-export function NumberInput(props: { value: number | null | undefined; onChange: (v: number | null) => void; step?: number; min?: number; max?: number; width?: number; placeholder?: string; className?: string }) {
+export function NumberInput(props: { value: number | null | undefined; onChange: (v: number | null) => void; step?: number; min?: number; max?: number; width?: number; placeholder?: string; className?: string; size?: "sm" | "md" }) {
   return (
     <input
       type="number"
-      className={"input input-sm " + (props.className ?? "")}
+      className={"input " + (props.size === "md" ? "" : "sm ") + (props.className ?? "")}
       style={{ width: props.width ?? 90 }}
       step={props.step ?? 1}
       min={props.min}
@@ -164,64 +434,65 @@ export function NumberInput(props: { value: number | null | undefined; onChange:
   );
 }
 
-export function Field(props: { label: string; help?: string; children: React.ReactNode; className?: string }) {
+export function Field(props: { label: React.ReactNode; help?: React.ReactNode; children: React.ReactNode; className?: string }) {
   return (
-    <fieldset className={"fieldset min-w-0 p-0 " + (props.className ?? "")}>
-      <legend className="fieldset-legend pb-1 pt-0 text-xs opacity-70">{props.label}</legend>
+    <div className={"field " + (props.className ?? "")}>
+      <label>{props.label}</label>
       {props.children}
-      {props.help ? <p className="label text-xs whitespace-normal">{props.help}</p> : null}
-    </fieldset>
+      {props.help ? <p className="help">{props.help}</p> : null}
+    </div>
   );
 }
 
-export function Toggle(props: { checked: boolean; onChange: (v: boolean) => void; label: string; help?: string; color?: string }) {
+export function Loading({ text }: { text?: string }) {
   return (
-    <label className="flex cursor-pointer items-start gap-3">
-      <input type="checkbox" className={"toggle toggle-sm mt-0.5 " + (props.color ?? "toggle-primary")} checked={props.checked} onChange={(e) => props.onChange(e.target.checked)} />
-      <span>
-        <div className="text-sm">{props.label}</div>
-        {props.help ? <div className="text-xs opacity-60">{props.help}</div> : null}
-      </span>
-    </label>
+    <div className="loading">
+      <Icon path={mdiLoading} className="spin" /> {text ?? "Loading…"}
+    </div>
   );
 }
 
-export function Confirm(props: { text: string; onYes: () => void; children: React.ReactNode; className?: string }) {
-  const [arm, setArm] = useState(false);
+/** Collapsible card with a header line (chapters, variants…). */
+export function Fold(props: { open: boolean; onToggle: () => void; head: React.ReactNode; right?: React.ReactNode; children?: React.ReactNode; dim?: boolean; className?: string; innerRef?: React.Ref<HTMLDivElement> }) {
+  return (
+    <div ref={props.innerRef} className={"fold" + (props.open ? " open" : "") + (props.dim ? " dim" : "") + (props.className ? " " + props.className : "")}>
+      <div className="fold-head" onClick={props.onToggle} role="button" tabIndex={0} onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), props.onToggle())}>
+        {props.head}
+        <span className="ml-auto flex items-center gap-1" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+          {props.right}
+        </span>
+        <Icon path={mdiChevronDown} className="chev" size="sm" />
+      </div>
+      {props.open ? <div className="fold-body">{props.children}</div> : null}
+    </div>
+  );
+}
+
+/** Centred dialog with a backdrop. */
+export function Dialog(props: { open: boolean; onClose: () => void; title: React.ReactNode; icon?: string; children: React.ReactNode; sm?: boolean; head?: React.ReactNode; foot?: React.ReactNode }) {
   useEffect(() => {
-    if (!arm) return;
-    const id = window.setTimeout(() => setArm(false), 3500);
-    return () => window.clearTimeout(id);
-  }, [arm]);
+    if (!props.open) return;
+    const key = (e: KeyboardEvent) => e.key === "Escape" && props.onClose();
+    document.addEventListener("keydown", key);
+    return () => document.removeEventListener("keydown", key);
+  }, [props.open, props.onClose]);
+  if (!props.open) return null;
   return (
-    <button
-      type="button"
-      className={(props.className ?? "btn btn-sm btn-outline btn-error") + (arm ? " btn-active" : "")}
-      onClick={() => {
-        if (arm) {
-          setArm(false);
-          props.onYes();
-        } else setArm(true);
-      }}
-    >
-      {arm ? props.text : props.children}
-    </button>
-  );
-}
-
-/** Pill-style toggle used for variants, conditions and scene membership. */
-export function Pill(props: { active?: boolean; auto?: boolean; onClick?: () => void; children: React.ReactNode; title?: string; disabled?: boolean; color?: string }) {
-  const tone = props.color ?? (props.auto ? "btn-accent" : "btn-primary");
-  return (
-    <button
-      type="button"
-      title={props.title}
-      disabled={props.disabled}
-      className={"btn btn-xs rounded-full " + (props.active ? tone : "btn-outline border-base-300 text-base-content/70 hover:border-base-content/40") + (props.auto && !props.active ? " border-dashed" : "")}
-      onClick={props.onClick}
-    >
-      {props.children}
-    </button>
+    <>
+      <div className="backdrop" onMouseDown={props.onClose} />
+      <div className={"dialog" + (props.sm ? " sm" : "")} role="dialog" aria-label={typeof props.title === "string" ? props.title : undefined}>
+        <header className="content-head">
+          {props.icon ? <Icon path={props.icon} className="muted" /> : null}
+          <h2>{props.title}</h2>
+          {props.head}
+          <button type="button" className="close" onClick={props.onClose} aria-label="Close">
+            <Icon path={mdiClose} />
+          </button>
+        </header>
+        <div className="body">{props.children}</div>
+        {props.foot ? <div className="pane-foot">{props.foot}</div> : null}
+      </div>
+    </>
   );
 }
 
@@ -239,16 +510,9 @@ export const COLORS = ["#3a4a7a", "#e8b45a", "#f0c86a", "#7fb1d6", "#9cc9a0", "#
 
 export function ColorDots({ value, onChange }: { value: string | null | undefined; onChange: (c: string) => void }) {
   return (
-    <div className="flex flex-wrap items-center gap-1">
+    <div className="flex flex-wrap items-center gap-1.5">
       {COLORS.map((col) => (
-        <button
-          key={col}
-          type="button"
-          className="h-5 w-5 rounded-full border border-white/20 transition-transform hover:scale-110"
-          style={{ background: col, outline: value === col ? "2px solid var(--color-primary)" : undefined, outlineOffset: 1 }}
-          onClick={() => onChange(col)}
-          aria-label={col}
-        />
+        <button key={col} type="button" className={"color-dot" + (value === col ? " on" : "")} style={{ background: col }} onClick={() => onChange(col)} aria-label={col} aria-pressed={value === col} />
       ))}
     </div>
   );

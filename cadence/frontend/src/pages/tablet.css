@@ -1,5 +1,10 @@
 /* Tablet "Light Story" view — full-screen, dark, photo-backed. Ported from the design mockup. */
-.tv { position: fixed; inset: 0; overflow: hidden; background: #000; user-select: none; color: var(--text); font-family: var(--sans); font-size: 14px; }
+.tv {
+  /* The wall view keeps its own dark, photo-backed palette; the designer pages use the sheet tokens in styles.css. */
+  --ground: #0a1020; --surface: #141c30; --surface-2: #1a2340; --surface-3: #202b4d; --line: #26304a; --line-2: #34405f;
+  --text: #ede6d6; --text-2: #b9b3a6; --muted: #8e97ad; --lamp: #f2b24a; --lamp-2: #ffd98a; --live: #6ed3c6; --danger: #e07a6b; --focus: #9cc9ff;
+  --sans: "Instrument Sans", Roboto, "Helvetica Neue", Arial, sans-serif; --serif: "Newsreader", Georgia, "Times New Roman", serif; --mono: "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+  position: fixed; inset: 0; overflow: hidden; background: #000; user-select: none; color: var(--text); font-family: var(--sans); font-size: 14px; }
 .tv .photo { position: absolute; inset: 0; overflow: hidden; }
 .tv .stage { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: max(100vw, calc(100vh * 1400 / 665)); aspect-ratio: 1400 / 665; }
 .tv .layer { position: absolute; inset: 0; background-size: 100% 100%; background-repeat: no-repeat; }
