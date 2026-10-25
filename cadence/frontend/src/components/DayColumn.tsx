@@ -21,38 +21,55 @@ export function DayColumn(props: {
   const chapters = d.chapters;
   const pct = (m: number) => (Math.max(0, Math.min(1440, m)) / 1440) * 100;
   const hostRef = useRef<HTMLDivElement>(null);
-  const [drag, setDrag] = useState<{ id: string; minute: number } | null>(null);
+  // `offset` = how far (in minutes) the pointer grabbed below the edge it is moving.
+  const [drag, setDrag] = useState<{ id: string; minute: number; offset: number } | null>(null);
   const baseStarts = chapters.map((c) => (c.start ? minutesOfDay(c.start) : minutesOfDay(c.nominal)));
   const starts = baseStarts.map((m, i) => (drag && chapters[i].chapter_id === drag.id ? drag.minute : m));
 
+  // Drop lands exactly where the pointer is released: the minute is read from the pointer-up
+  // event itself (React state can lag one move behind), and listeners are bound once per drag.
+  const dragId = drag?.id ?? null;
   useEffect(() => {
-    if (!drag) return;
-    const move = (e: PointerEvent) => {
+    if (!dragId) return;
+    const offset = drag?.offset ?? 0;
+    const minuteAt = (clientY: number) => {
       const rect = hostRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      const m = Math.round((((e.clientY - rect.top) / rect.height) * 1440) / 5) * 5;
-      setDrag((x) => (x ? { ...x, minute: Math.max(0, Math.min(1435, m)) } : x));
+      if (!rect) return null;
+      const m = Math.round((((clientY - rect.top) / rect.height) * 1440 - offset) / 5) * 5;
+      return Math.max(0, Math.min(1435, m));
     };
-    const up = () => {
-      const c = chapters.find((x) => x.chapter_id === drag.id);
+    const move = (e: PointerEvent) => {
+      const m = minuteAt(e.clientY);
+      if (m != null) setDrag((x) => (x && x.minute !== m ? { ...x, minute: m } : x));
+    };
+    const up = (e: PointerEvent) => {
+      const c = chapters.find((x) => x.chapter_id === dragId);
       const orig = c ? baseStarts[chapters.indexOf(c)] : null;
-      if (c && orig !== null && drag.minute !== orig) props.onMoveStart?.(c, drag.minute);
+      const m = minuteAt(e.clientY);
+      if (c && orig !== null && m != null && m !== orig) props.onMoveStart?.(c, m);
       setDrag(null);
     };
+    const cancel = () => setDrag(null);
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up, { once: true });
+    window.addEventListener("pointercancel", cancel, { once: true });
     return () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", cancel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [drag?.id, drag?.minute]);
+  }, [dragId]);
 
   const isToday = props.now ? props.now.slice(0, 10) === d.date : false;
   const nowMin = isToday && props.now ? minutesOfDay(props.now) : null;
   const sr = d.sunrise ? minutesOfDay(d.sunrise) : null;
   const ss = d.sunset ? minutesOfDay(d.sunset) : null;
 
+  const rawMinute = (clientY: number) => {
+    const rect = hostRef.current?.getBoundingClientRect();
+    return rect ? ((clientY - rect.top) / rect.height) * 1440 : 0;
+  };
   const ctxFromEvent = (e: React.MouseEvent<HTMLElement>, chapter: ResolvedChapter | null) => {
     if (!props.onContext) return;
     e.preventDefault();
@@ -155,7 +172,7 @@ export function DayColumn(props: {
                 onPointerDown={(ev) => {
                   ev.preventDefault();
                   ev.stopPropagation();
-                  setDrag({ id: c.chapter_id, minute: s });
+                  setDrag({ id: c.chapter_id, minute: s, offset: rawMinute(ev.clientY) - s });
                 }}
                 onClick={(ev) => ev.stopPropagation()}
               >
@@ -182,7 +199,7 @@ export function DayColumn(props: {
                 onPointerDown={(ev) => {
                   ev.preventDefault();
                   ev.stopPropagation();
-                  setDrag({ id: next.chapter_id, minute: starts[nextIdx] });
+                  setDrag({ id: next.chapter_id, minute: starts[nextIdx], offset: rawMinute(ev.clientY) - starts[nextIdx] });
                 }}
                 onClick={(ev) => ev.stopPropagation()}
               >

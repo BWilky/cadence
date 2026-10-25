@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.2
+
+- Zoom the Now page's 24-hour strip with the mouse wheel or a trackpad (pinch, or two-finger
+  scroll up to zoom in and down to zoom out), anchored on the cursor; two-finger horizontal
+  scrolling pans it; double-click or the reset chip returns to the whole day. Pinch (ctrl +
+  wheel) on the week grid changes its hour height.
+- Dragging a chapter edge in the week grid now lands exactly where the handle is released,
+  and the grid no longer selects text while dragging.
+- The tracked egg-info folder is gone from the repository (it shadowed the package version on
+  dev checkouts).
+
 ## 0.4.1
 
 - The backend reports the version from its package metadata, so the sidebar and startup log

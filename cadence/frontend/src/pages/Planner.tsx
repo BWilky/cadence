@@ -11,7 +11,9 @@ import type { TrackContext } from "../components/Track";
 import { Btn, COLORS, Chip, Confirm, Field, Fold, Icon, IconBtn, Page, Row, Section, Segmented, toast } from "../components/ui";
 import type { CadenceScene, Chapter, DayPlan, DayView, ResolvedChapter, Template } from "../types";
 
-const HOUR_H = 44; // px per hour
+const HOUR_H_DEFAULT = 44; // px per hour
+const HOUR_H_MIN = 24;
+const HOUR_H_MAX = 140;
 const GUTTER = 48; // px, hour labels
 
 /** Monday of the week containing `iso`. */
@@ -50,6 +52,37 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
   const [calMonth, setCalMonth] = useState<string>(() => monthStart(today));
   const gridRef = useRef<HTMLDivElement>(null);
   const st = live.status;
+  const [HOUR_H, setHourH] = useState<number>(() => {
+    const v = parseFloat(localStorage.getItem("cadence.planner.hourH") ?? "");
+    return Number.isFinite(v) ? Math.max(HOUR_H_MIN, Math.min(HOUR_H_MAX, v)) : HOUR_H_DEFAULT;
+  });
+  const hourHRef = useRef(HOUR_H);
+  useEffect(() => {
+    hourHRef.current = HOUR_H;
+    localStorage.setItem("cadence.planner.hourH", String(HOUR_H));
+  }, [HOUR_H]);
+  // Pinch (ctrl+wheel on a trackpad) zooms the hour height around the cursor; a plain wheel still scrolls.
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el) return;
+    const wheel = (e: WheelEvent) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      const old = hourHRef.current;
+      const next = Math.max(HOUR_H_MIN, Math.min(HOUR_H_MAX, old * Math.exp(-e.deltaY * 0.012)));
+      if (next === old) return;
+      const rect = el.getBoundingClientRect();
+      const yInView = e.clientY - rect.top;
+      const contentY = el.scrollTop + yInView;
+      hourHRef.current = next;
+      setHourH(next);
+      requestAnimationFrame(() => {
+        el.scrollTop = (contentY * next) / old - yInView;
+      });
+    };
+    el.addEventListener("wheel", wheel, { passive: false });
+    return () => el.removeEventListener("wheel", wheel);
+  }, []);
 
   useEffect(() => {
     api.get<Template[]>("api/templates").then(setTemplates).catch(() => undefined);

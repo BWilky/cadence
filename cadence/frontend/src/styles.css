@@ -2407,3 +2407,43 @@ label.row.toggle-row {
     font-size: 10px;
   }
 }
+
+/* zoomable 24-hour strip */
+.track-view {
+  position: relative;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x pan-y;
+  border-radius: 12px;
+}
+.track-view::-webkit-scrollbar {
+  display: none;
+}
+.track-view > .track {
+  min-width: 100%;
+}
+.zoom-chip {
+  position: absolute;
+  right: 6px;
+  top: 4px;
+  z-index: 5;
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text-2);
+  box-shadow: var(--shadow-on);
+}
+.zoom-chip:hover {
+  color: var(--text);
+}
+/* the week grid is not text: never let a drag select it */
+.week-grid,
+.week-head {
+  user-select: none;
+  -webkit-user-select: none;
+}

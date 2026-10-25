@@ -10,3 +10,4 @@ cadence/backend/cadence/static/
 *.sqlite
 .env
 .DS_Store
+*.egg-info/
