@@ -30,7 +30,7 @@ export function Scenes() {
   const current = list.find((s) => s.id === sel) ?? null;
   return (
     <Page title="Scenes" icon={mdiPaletteOutline}>
-      <div className="cols list">
+      <div className="cols split">
         <Section icon={mdiPaletteOutline} title="Scenes" count={`${list.length}`} actions={<IconBtn icon={mdiPlus} label="New scene" size="sm" soft onClick={() => create().catch((e) => toast(e.message, true))} />}>
           <p className="help">A Cadence scene is a look for the building: one or more Home Assistant scenes (RA2 phantom buttons, WiZ scenes…) plus what the music should do.</p>
           <div className="list">

@@ -59,7 +59,7 @@ export function Templates() {
 
   return (
     <Page title="Templates" icon={mdiBookOpenPageVariantOutline}>
-      <div className="cols list">
+      <div className="cols split">
         <div className="col">
           <Section icon={mdiBookOpenPageVariantOutline} title="Templates" count={list.length} actions={<IconBtn icon={mdiPlus} size="sm" soft label="New template" onClick={() => create().catch((e) => toast(e.message, true))} />}>
             <p className="help">A template is one whole day: its chapters in order, and for each chapter the variants that react to sky, motion and occupancy.</p>

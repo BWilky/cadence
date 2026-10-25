@@ -321,7 +321,7 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
           </div>
           {weekDays.map((date) => {
             const d = cache[date];
-            if (!d) return <div key={date} className="col" />;
+            if (!d) return <div key={date} className="daycol" />;
             const isToday = date === today;
             return (
               <DayColumn

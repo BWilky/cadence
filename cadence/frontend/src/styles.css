@@ -366,7 +366,7 @@ input[type="radio"] {
 .cols.even {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
-.cols.list {
+.cols.split {
   grid-template-columns: 280px minmax(0, 1fr);
 }
 .cols > .col {
@@ -378,7 +378,7 @@ input[type="radio"] {
 @media (max-width: 900px) {
   .cols,
   .cols.even,
-  .cols.list {
+  .cols.split {
     grid-template-columns: minmax(0, 1fr);
   }
 }
@@ -1814,40 +1814,40 @@ label.row.toggle-row {
 }
 
 /* ---------- vertical day column (Planner week view) ---------- */
-.col {
+.daycol {
   position: relative;
   height: 100%;
   min-width: 0;
   border-left: 1px solid rgba(var(--rgb-text), 0.08);
   transition: opacity 0.15s;
 }
-.col.vacant {
+.daycol.vacant {
   opacity: 0.28;
 }
-.col.vacant:hover {
+.daycol.vacant:hover {
   opacity: 0.5;
 }
-.col.following {
+.daycol.following {
   opacity: 0.82;
 }
-.col.picked {
+.daycol.picked {
   background: color-mix(in srgb, var(--accent-2) 6%, transparent);
 }
-.col .hline {
+.daycol .hline {
   position: absolute;
   left: 0;
   right: 0;
   border-top: 1px solid rgba(var(--rgb-text), 0.06);
   pointer-events: none;
 }
-.col .night {
+.daycol .night {
   position: absolute;
   left: 0;
   right: 0;
   background: rgba(var(--rgb-text), 0.04);
   pointer-events: none;
 }
-.col .auto {
+.daycol .auto {
   position: absolute;
   left: 2px;
   width: 3px;
@@ -1855,7 +1855,7 @@ label.row.toggle-row {
   background: color-mix(in srgb, var(--accent) 55%, transparent);
   pointer-events: none;
 }
-.col .event {
+.daycol .event {
   position: absolute;
   left: 7px;
   width: 3px;
@@ -1863,7 +1863,7 @@ label.row.toggle-row {
   background: color-mix(in srgb, var(--accent-2) 60%, transparent);
   pointer-events: none;
 }
-.col .block {
+.daycol .block {
   position: absolute;
   left: 6px;
   right: 6px;
@@ -1877,7 +1877,7 @@ label.row.toggle-row {
   cursor: pointer;
   transition: box-shadow 0.12s;
 }
-.col .block::before {
+.daycol .block::before {
   content: "";
   position: absolute;
   left: 10px;
@@ -1887,10 +1887,10 @@ label.row.toggle-row {
   border-radius: 0 0 2px 2px;
   background: var(--c-line);
 }
-.col .block:hover {
+.daycol .block:hover {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.14);
 }
-.col .block .t {
+.daycol .block .t {
   display: flex;
   align-items: center;
   gap: 5px;
@@ -1901,46 +1901,46 @@ label.row.toggle-row {
   white-space: nowrap;
   overflow: hidden;
 }
-.col .block .t .mu {
+.daycol .block .t .mu {
   font-weight: 400;
   opacity: 0.6;
 }
-.col .block .n {
+.daycol .block .n {
   font-weight: 500;
   color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.col .block .t .n {
+.daycol .block .t .n {
   font-weight: 500;
   min-width: 0;
 }
-.col .block .v {
+.daycol .block .v {
   margin-top: 2px;
   font-size: 11px;
   color: rgba(var(--rgb-text), 0.55);
 }
-.col .block.dim {
+.daycol .block.dim {
   opacity: 0.5;
 }
-.col .block.cond {
+.daycol .block.cond {
   background: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--c-fill) 42%, var(--bg)) 0 6px, color-mix(in srgb, var(--c-fill) 22%, var(--bg)) 6px 12px);
 }
-.col .block.ghost {
+.daycol .block.ghost {
   opacity: 0.5;
   cursor: default;
 }
-.col .block.ghost::before {
+.daycol .block.ghost::before {
   display: none;
 }
-.col .block.held::before {
+.daycol .block.held::before {
   background: repeating-linear-gradient(90deg, var(--c-line) 0 6px, transparent 6px 10px);
 }
-.col .block.current {
+.daycol .block.current {
   box-shadow: 0 0 0 2px var(--accent);
 }
-.col .block .holdmark {
+.daycol .block .holdmark {
   position: absolute;
   left: 10px;
   right: 10px;
@@ -1950,7 +1950,7 @@ label.row.toggle-row {
   background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--accent) 70%, transparent) 0 4px, transparent 4px 8px);
   pointer-events: none;
 }
-.col .block .grip {
+.daycol .block .grip {
   position: absolute;
   left: 0;
   right: 0;
@@ -1963,14 +1963,14 @@ label.row.toggle-row {
   cursor: ns-resize;
   touch-action: none;
 }
-.col .block .grip.bottom {
+.daycol .block .grip.bottom {
   top: auto;
   bottom: 0;
   align-items: flex-end;
   padding-top: 0;
   padding-bottom: 3px;
 }
-.col .block .grip .pill {
+.daycol .block .grip .pill {
   width: 22px;
   height: 3px;
   border-radius: 999px;
@@ -1978,25 +1978,25 @@ label.row.toggle-row {
   opacity: 0;
   transition: opacity 0.12s;
 }
-.col .block:hover .grip .pill {
+.daycol .block:hover .grip .pill {
   opacity: 1;
 }
-.col .block .grip:hover .pill {
+.daycol .block .grip:hover .pill {
   background: color-mix(in srgb, var(--c-line) 60%, transparent);
 }
-.col.dragging .block .grip .pill {
+.daycol.dragging .block .grip .pill {
   opacity: 0;
 }
-.col.dragging .block .grip.active .pill {
+.daycol.dragging .block .grip.active .pill {
   opacity: 1;
   background: color-mix(in srgb, var(--c-line) 60%, transparent);
 }
-.col.dragging,
-.col.dragging .block {
+.daycol.dragging,
+.daycol.dragging .block {
   cursor: ns-resize;
   user-select: none;
 }
-.col .playhead {
+.daycol .playhead {
   position: absolute;
   left: 0;
   right: 0;
@@ -2004,7 +2004,7 @@ label.row.toggle-row {
   z-index: 3;
   pointer-events: none;
 }
-.col .playhead::before {
+.daycol .playhead::before {
   content: "";
   position: absolute;
   left: -4px;
@@ -2014,7 +2014,7 @@ label.row.toggle-row {
   border-radius: 50%;
   background: var(--accent);
 }
-.col .empty {
+.daycol .empty {
   position: absolute;
   inset: 0;
   display: flex;
@@ -2326,4 +2326,25 @@ label.row.toggle-row {
   align-items: center;
   justify-content: center;
   color: var(--text-2);
+}
+
+/* phones: tighter planner chrome */
+@media (max-width: 767px) {
+  .legend {
+    display: none;
+  }
+  .day-head {
+    padding: 6px 4px 4px;
+  }
+  .day-head > button {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+  }
+  .day-head .num {
+    font-size: 16px;
+  }
+  .day-head .dow {
+    font-size: 10px;
+  }
 }

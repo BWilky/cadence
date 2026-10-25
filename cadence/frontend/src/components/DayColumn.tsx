@@ -66,7 +66,7 @@ export function DayColumn(props: {
   const firstStart = enabledStarts.length ? Math.min(...enabledStarts) : 1440;
 
   return (
-    <div ref={hostRef} className={["col", tone, drag ? "dragging" : "", props.className ?? ""].join(" ")} onContextMenu={(e) => ctxFromEvent(e, null)}>
+    <div ref={hostRef} className={["daycol", tone, drag ? "dragging" : "", props.className ?? ""].join(" ")} onContextMenu={(e) => ctxFromEvent(e, null)}>
       {Array.from({ length: 24 }, (_, h) => (
         <div key={h} className="hline" style={{ top: pct(h * 60) + "%" }} />
       ))}
