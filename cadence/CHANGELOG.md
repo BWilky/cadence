@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.0
+
+- New look for the planner pages, matching the Tablets / Audio sheets on the dashboards: a left
+  sidebar with icon navigation and a status chip, tinted sections instead of bordered cards,
+  icon action tiles, chips, pill buttons, tile-style sliders and toggles, Roboto, Material
+  Design icons, light and dark themes mirroring Home Assistant's defaults. daisyUI removed.
+- Calendar-style timelines: chapters in the week grid and the 24-hour strip are soft cards
+  tinted from the chapter colour with the colour as title ink and the start time beneath;
+  conditional, held and carried-over chapters use an outline. One "now" line runs across the
+  whole week with a time flag in the hour gutter; today's column is tinted.
+- Phones get a top title bar and a bottom tab strip; the day pane opens as a bottom sheet.
+- The wall tablet view is unchanged.
+
 ## 0.3.0
 
 - Template rules: apply a template to days automatically from the calendar (title / location /
