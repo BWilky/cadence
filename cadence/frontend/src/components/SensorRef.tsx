@@ -49,9 +49,9 @@ export function SensorRef({ value, onChange, placeholder }: { value: string | nu
     if (isGroup) setMode("group");
   }, [isGroup]);
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="inline-text">
       <select
-        className="select select-sm w-auto"
+        className="select sm"
         value={mode === "group" ? (isGroup ? value : "") : "__entity"}
         onChange={(e) => {
           const v = e.target.value;
@@ -77,7 +77,7 @@ export function SensorRef({ value, onChange, placeholder }: { value: string | nu
           <EntityPicker value={isGroup ? null : value} onChange={onChange} filter={isSensorish} placeholder={placeholder ?? "binary_sensor, group, input_boolean…"} />
         </div>
       ) : null}
-      {groups.length === 0 && mode === "group" ? <span className="text-xs opacity-60">Create groups under Settings → Sensor groups.</span> : null}
+      {groups.length === 0 && mode === "group" ? <span className="help">Create groups under Settings → Sensor groups.</span> : null}
     </div>
   );
 }

@@ -1,9 +1,10 @@
+import { mdiArrowDown, mdiArrowUp, mdiBookOpenPageVariantOutline, mdiClose, mdiContentCopy, mdiFilterOutline, mdiPlus, mdiStarOutline, mdiTrashCanOutline } from "@mdi/js";
 import { useEffect, useState } from "react";
 import { api, describeStart, slug } from "../api";
-import { defaultStart } from "../components/StartEditor";
 import { ChapterEditor } from "../components/ChapterEditor";
 import { RuleEditor, describeCondition, emptyRule } from "../components/RuleEditor";
-import { COLORS, ColorDots, Confirm, toast } from "../components/ui";
+import { defaultStart } from "../components/StartEditor";
+import { Btn, COLORS, Chip, ColorDots, Confirm, Fold, Icon, IconBtn, Page, Section, toast } from "../components/ui";
 import type { CadenceScene, Chapter, Settings, Template, TemplateRule } from "../types";
 
 export function Templates() {
@@ -54,107 +55,109 @@ export function Templates() {
   const current = sel?.startsWith("t:") ? list.find((t) => t.id === sel.slice(2)) ?? null : null;
   const currentRule = sel?.startsWith("r:") ? settings?.rules.find((r) => r.id === sel.slice(2)) ?? null : null;
   const ruleIndex = currentRule && settings ? settings.rules.indexOf(currentRule) : -1;
+  const rules = settings?.rules ?? [];
 
   return (
-    <div className="mx-auto grid max-w-7xl gap-5 lg:grid-cols-[300px_1fr]">
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <h2 className="display text-2xl">Templates</h2>
-          <button className="btn btn-sm btn-primary" onClick={() => create().catch((e) => toast(e.message, true))}>
-            + New
-          </button>
-        </div>
-        <p className="text-xs opacity-60">A template is one whole day: its chapters in order, and for each chapter the variants that react to sky, motion and occupancy.</p>
-        <ul className="menu w-full rounded-box border border-base-300 bg-base-100 p-1">
-          {list.map((t) => (
-            <li key={t.id}>
-              <button className={"t:" + t.id === sel ? "menu-active" : ""} onClick={() => setSel("t:" + t.id)}>
-                <span className="flex w-full min-w-0 flex-col items-start">
-                  <span className="flex items-center gap-2">
-                    <span className="swatch" style={{ background: t.color ?? "#556" }} />
-                    {t.name} {settings?.default_template_id === t.id ? <span className="badge badge-xs badge-accent badge-soft">default</span> : null}
-                  </span>
-                  <span className="text-[11px] opacity-60">
-                    {t.chapters.length} chapter{t.chapters.length === 1 ? "" : "s"}
-                  </span>
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-
-        <div className="mt-2 flex items-center justify-between">
-          <h2 className="display text-2xl">Rules</h2>
-          <button className="btn btn-sm btn-primary" onClick={() => createRule().catch((e) => toast(e.message, true))}>
-            + New
-          </button>
-        </div>
-        <p className="text-xs opacity-60">
-          Rules apply a template to days automatically: from the calendar, the date, or a sensor on the day itself. Checked top to bottom, first match wins. Days nothing takes run the default template{settings?.default_template_id ? "" : " — none is set, so they run nothing"}.
-        </p>
-        <ul className="menu w-full rounded-box border border-base-300 bg-base-100 p-1">
-          {(settings?.rules ?? []).map((r, i) => {
-            const t = list.find((x) => x.id === r.template_id);
-            return (
-              <li key={r.id}>
-                <button className={("r:" + r.id === sel ? "menu-active" : "") + (r.enabled ? "" : " opacity-50")} onClick={() => setSel("r:" + r.id)}>
-                  <span className="flex w-full min-w-0 flex-col items-start">
-                    <span className="flex items-center gap-2">
-                      <span className="font-mono text-[10px] opacity-50">{i + 1}</span>
-                      <span className="swatch" style={{ background: t?.color ?? "#556" }} />
-                      {r.name}
-                      {!r.enabled ? <span className="badge badge-xs badge-ghost">paused</span> : null}
+    <Page title="Templates" icon={mdiBookOpenPageVariantOutline}>
+      <div className="cols list">
+        <div className="col">
+          <Section icon={mdiBookOpenPageVariantOutline} title="Templates" count={list.length} actions={<IconBtn icon={mdiPlus} size="sm" soft label="New template" onClick={() => create().catch((e) => toast(e.message, true))} />}>
+            <p className="help">A template is one whole day: its chapters in order, and for each chapter the variants that react to sky, motion and occupancy.</p>
+            <div className="list">
+              {list.map((t) => (
+                <button key={t.id} type="button" className={"list-item" + ("t:" + t.id === sel ? " on" : "")} onClick={() => setSel("t:" + t.id)}>
+                  <span className="swatch" style={{ background: t.color ?? "#556" }} />
+                  <span className="lt">
+                    <span>
+                      {t.name}
+                      {settings?.default_template_id === t.id ? (
+                        <Chip sm tone="ok">
+                          default
+                        </Chip>
+                      ) : null}
                     </span>
-                    <span className="w-full truncate text-[11px] opacity-60">
-                      → {r.template_id ? t?.name ?? r.template_id : "nothing"} · {r.conditions.length ? r.conditions.map(describeCondition).join(" & ") : "every day"}
-                    </span>
+                    <small>
+                      {t.chapters.length} chapter{t.chapters.length === 1 ? "" : "s"}
+                    </small>
                   </span>
                 </button>
-              </li>
-            );
-          })}
-          {settings && settings.rules.length === 0 ? <li className="px-3 py-2 text-xs opacity-50">No rules yet.</li> : null}
-        </ul>
+              ))}
+              {list.length === 0 ? <div className="empty">No templates yet.</div> : null}
+            </div>
+          </Section>
+
+          <Section icon={mdiFilterOutline} title="Rules" count={rules.length} actions={<IconBtn icon={mdiPlus} size="sm" soft label="New rule" onClick={() => createRule().catch((e) => toast(e.message, true))} />}>
+            <p className="help">
+              Rules apply a template to days automatically: from the calendar, the date, or a sensor on the day itself. Checked top to bottom, first match wins. Days nothing takes run the default template{settings?.default_template_id ? "" : " — none is set, so they run nothing"}.
+            </p>
+            <div className="list">
+              {rules.map((r, i) => {
+                const t = list.find((x) => x.id === r.template_id);
+                return (
+                  <button key={r.id} type="button" className={"list-item" + ("r:" + r.id === sel ? " on" : "") + (r.enabled ? "" : " dim")} onClick={() => setSel("r:" + r.id)}>
+                    <span className="muted tnum text-[11px] w-4 text-right">{i + 1}</span>
+                    <span className="swatch" style={{ background: t?.color ?? "#556" }} />
+                    <span className="lt">
+                      <span>
+                        {r.name}
+                        {!r.enabled ? <Chip sm>paused</Chip> : null}
+                      </span>
+                      <small>
+                        → {r.template_id ? t?.name ?? r.template_id : "nothing"} · {r.conditions.length ? r.conditions.map(describeCondition).join(" & ") : "every day"}
+                      </small>
+                    </span>
+                  </button>
+                );
+              })}
+              {settings && rules.length === 0 ? <div className="empty">No rules yet.</div> : null}
+            </div>
+          </Section>
+        </div>
+
+        <div className="col">
+          {currentRule && settings ? (
+            <RuleEditor
+              key={currentRule.id}
+              rule={currentRule}
+              templates={list}
+              calendars={settings.calendars}
+              index={ruleIndex}
+              total={settings.rules.length}
+              onSave={(r) => saveRules(settings.rules.map((x) => (x.id === r.id ? r : x)))}
+              onDelete={async () => {
+                await saveRules(settings.rules.filter((x) => x.id !== currentRule.id));
+                setSel(null);
+              }}
+              onMove={async (dir) => {
+                const arr = [...settings.rules];
+                const j = ruleIndex + dir;
+                if (j < 0 || j >= arr.length) return;
+                [arr[ruleIndex], arr[j]] = [arr[j], arr[ruleIndex]];
+                await saveRules(arr);
+              }}
+            />
+          ) : current && settings ? (
+            <TemplateEditor
+              key={current.id}
+              template={current}
+              scenes={scenes}
+              settings={settings}
+              isDefault={settings.default_template_id === current.id}
+              onSaved={reload}
+              onDuplicate={() => duplicate(current).catch((e) => toast(e.message, true))}
+              onDeleted={() => {
+                setSel(null);
+                reload();
+              }}
+            />
+          ) : (
+            <Section>
+              <div className="empty">Select or create a template or rule.</div>
+            </Section>
+          )}
+        </div>
       </div>
-      {currentRule && settings ? (
-        <RuleEditor
-          key={currentRule.id}
-          rule={currentRule}
-          templates={list}
-          calendars={settings.calendars}
-          index={ruleIndex}
-          total={settings.rules.length}
-          onSave={(r) => saveRules(settings.rules.map((x) => (x.id === r.id ? r : x)))}
-          onDelete={async () => {
-            await saveRules(settings.rules.filter((x) => x.id !== currentRule.id));
-            setSel(null);
-          }}
-          onMove={async (dir) => {
-            const arr = [...settings.rules];
-            const j = ruleIndex + dir;
-            if (j < 0 || j >= arr.length) return;
-            [arr[ruleIndex], arr[j]] = [arr[j], arr[ruleIndex]];
-            await saveRules(arr);
-          }}
-        />
-      ) : current && settings ? (
-        <TemplateEditor
-          key={current.id}
-          template={current}
-          scenes={scenes}
-          settings={settings}
-          isDefault={settings.default_template_id === current.id}
-          onSaved={reload}
-          onDuplicate={() => duplicate(current).catch((e) => toast(e.message, true))}
-          onDeleted={() => {
-            setSel(null);
-            reload();
-          }}
-        />
-      ) : (
-        <div className="flex h-40 items-center justify-center rounded-box border border-dashed border-base-300 opacity-60">Select or create a template or rule.</div>
-      )}
-    </div>
+    </Page>
   );
 }
 
@@ -222,77 +225,85 @@ function TemplateEditor(props: { template: Template; scenes: CadenceScene[]; set
   };
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="card border border-base-300 bg-base-100 shadow-sm">
-        <div className="card-body gap-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <input type="text" className="input display flex-1 text-2xl" value={t.name} onChange={(e) => setT({ ...t, name: e.target.value })} />
-            <div className="flex items-center gap-2">
-              {!props.isDefault ? (
-                <button className="btn btn-sm btn-outline btn-accent" onClick={makeDefault} title="Run this template on every day no rule or manual choice takes">
-                  Make default
-                </button>
-              ) : (
-                <span className="badge badge-accent badge-soft" title="Runs on every day no rule or manual choice takes">default</span>
-              )}
-              <button className="btn btn-sm btn-ghost" onClick={props.onDuplicate}>
-                Duplicate
-              </button>
-              {!props.isDefault ? (
-                <Confirm text="Delete this template?" onYes={remove}>
-                  Delete
-                </Confirm>
-              ) : null}
-            </div>
+    <div className="flex flex-col gap-3.5">
+      <Section>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <input type="text" className="input title" value={t.name} onChange={(e) => setT({ ...t, name: e.target.value })} />
           </div>
-          <textarea className="textarea textarea-sm w-full" value={t.description} onChange={(e) => setT({ ...t, description: e.target.value })} placeholder="What kind of day is this?" />
-          <div className="flex flex-wrap items-center gap-3 text-xs">
-            <span className="opacity-60">Colour in the planner</span>
-            <ColorDots value={t.color} onChange={(c) => setT({ ...t, color: c })} />
+          <div className="flex items-center gap-2">
+            {!props.isDefault ? (
+              <Btn sm icon={mdiStarOutline} onClick={makeDefault} title="Run this template on every day no rule or manual choice takes">
+                Make default
+              </Btn>
+            ) : (
+              <Chip tone="ok" title="Runs on every day no rule or manual choice takes">
+                default
+              </Chip>
+            )}
+            <Btn sm variant="ghost" icon={mdiContentCopy} onClick={props.onDuplicate}>
+              Duplicate
+            </Btn>
+            {!props.isDefault ? (
+              <Confirm text="Delete this template?" icon={mdiTrashCanOutline} sm onYes={remove}>
+                Delete
+              </Confirm>
+            ) : null}
           </div>
         </div>
-      </div>
+        <textarea className="textarea w-full" value={t.description} onChange={(e) => setT({ ...t, description: e.target.value })} placeholder="What kind of day is this?" />
+        <div className="inline-text">
+          <span>Colour in the planner</span>
+          <ColorDots value={t.color} onChange={(c) => setT({ ...t, color: c })} />
+        </div>
+      </Section>
 
       <div className="flex flex-col gap-2">
         {t.chapters.map((c, i) => (
-          <div key={c.id} className={"collapse rounded-box border bg-base-100 shadow-sm " + (open === c.id ? "collapse-open border-base-content/20" : "collapse-close border-base-300") + (c.enabled ? "" : " opacity-60")}>
-            <div className="collapse-title flex min-h-0 cursor-pointer items-center gap-3 py-3 pr-3" onClick={() => setOpen(open === c.id ? null : c.id)}>
-              <span className="swatch" style={{ background: c.color ?? "#556" }} />
-              <b className="display text-lg">{c.name}</b>
-              <span className="font-mono text-xs opacity-60">{describeStart(c.start, props.settings.sensor_groups)}</span>
-              <span className="text-xs opacity-50">
-                {c.variants.length} variant{c.variants.length === 1 ? "" : "s"}
-                {c.fade_minutes ? ` · ${c.fade_minutes} min fade` : ""}
-              </span>
-              <span className="ml-auto flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                <button className="btn btn-ghost btn-xs btn-square" title="Move up" onClick={() => move(i, -1)}>
-                  ↑
-                </button>
-                <button className="btn btn-ghost btn-xs btn-square" title="Move down" onClick={() => move(i, 1)}>
-                  ↓
-                </button>
-                <Confirm text="Remove?" onYes={() => setT({ ...t, chapters: t.chapters.filter((x) => x.id !== c.id) })} className="btn btn-ghost btn-xs text-error">
-                  ✕
+          <Fold
+            key={c.id}
+            open={open === c.id}
+            onToggle={() => setOpen(open === c.id ? null : c.id)}
+            dim={!c.enabled}
+            head={
+              <>
+                <span className="swatch" style={{ background: c.color ?? "#556" }} />
+                <span className="ft">{c.name}</span>
+                <span className="fs">{describeStart(c.start, props.settings.sensor_groups)}</span>
+                <span className="fs">
+                  {c.variants.length} variant{c.variants.length === 1 ? "" : "s"}
+                  {c.fade_minutes ? ` · ${c.fade_minutes} min fade` : ""}
+                </span>
+              </>
+            }
+            right={
+              <>
+                <IconBtn icon={mdiArrowUp} size="xs" label="Move up" disabled={i === 0} onClick={() => move(i, -1)} />
+                <IconBtn icon={mdiArrowDown} size="xs" label="Move down" disabled={i >= t.chapters.length - 1} onClick={() => move(i, 1)} />
+                <Confirm text="Remove?" icon={mdiClose} iconOnly sm onYes={() => setT({ ...t, chapters: t.chapters.filter((x) => x.id !== c.id) })}>
+                  Remove chapter
                 </Confirm>
-              </span>
-            </div>
-            <div className="collapse-content">{open === c.id ? <ChapterEditor chapter={c} scenes={props.scenes} onChange={(p) => setChapter(c.id, p)} /> : null}</div>
-          </div>
+              </>
+            }
+          >
+            {open === c.id ? <ChapterEditor chapter={c} scenes={props.scenes} onChange={(p) => setChapter(c.id, p)} /> : null}
+          </Fold>
         ))}
-        <button className="btn btn-outline btn-block border-dashed" onClick={addChapter}>
-          + Add chapter
+        <button type="button" className="add-tile" onClick={addChapter}>
+          <Icon path={mdiPlus} />
+          Add chapter
         </button>
       </div>
-      <div className="sticky bottom-0 flex items-center gap-3 border-t border-base-300 bg-base-200 py-3">
-        <button className="btn btn-primary btn-sm" disabled={!dirty || saving} onClick={save}>
+      <div className="savebar">
+        <Btn variant="primary" disabled={!dirty || saving} onClick={save}>
           Save template
-        </button>
+        </Btn>
         {dirty ? (
-          <button className="btn btn-ghost btn-sm" onClick={() => setT(props.template)}>
+          <Btn variant="ghost" onClick={() => setT(props.template)}>
             Discard
-          </button>
+          </Btn>
         ) : null}
-        <span className="text-xs opacity-60">Chapters are ordered by their start time when the day is resolved; the list order is used for ties.</span>
+        <span className="help">Chapters are ordered by their start time when the day is resolved; the list order is used for ties.</span>
       </div>
     </div>
   );
