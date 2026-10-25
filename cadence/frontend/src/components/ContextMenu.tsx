@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Chip } from "./ui";
 
 export interface MenuItem {
   label: string;
@@ -8,7 +9,7 @@ export interface MenuItem {
   danger?: boolean;
   divider?: boolean;
   title?: boolean; // non-interactive heading
-  children?: MenuItem[]; // rendered inline as a small group
+  children?: MenuItem[]; // rendered inline as a small group of chips
 }
 
 export interface MenuState {
@@ -17,9 +18,9 @@ export interface MenuState {
   items: MenuItem[];
 }
 
-/** daisyUI `menu` rendered at the pointer. Closes on click, Escape, scroll or outside click. */
+/** Sheet-style menu rendered at the pointer. Closes on click, Escape, scroll or outside click. */
 export function ContextMenu({ menu, onClose }: { menu: MenuState | null; onClose: () => void }) {
-  const ref = useRef<HTMLUListElement>(null);
+  const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   useLayoutEffect(() => {
     if (!menu) return;
@@ -49,46 +50,53 @@ export function ContextMenu({ menu, onClose }: { menu: MenuState | null; onClose
   if (!menu) return null;
   const render = (items: MenuItem[]) =>
     items.map((it, i) => {
-      if (it.divider) return <li key={i} className="my-1 h-px bg-base-300" />;
-      if (it.title) return <li key={i} className="menu-title px-3 py-1 text-[11px]">{it.label}</li>;
+      if (it.divider) return <div key={i} className="menu-sep" />;
+      if (it.title)
+        return (
+          <div key={i} className="menu-title">
+            {it.label}
+          </div>
+        );
       if (it.children)
         return (
-          <li key={i}>
-            <span className="menu-title px-3 py-1 text-[11px]">{it.label}</span>
-            <div className="flex flex-wrap gap-1 px-3 pb-2">
+          <div key={i}>
+            <div className="menu-title">{it.label}</div>
+            <div className="chips px-3 pb-2">
               {it.children.map((c, j) => (
-                <button key={j} type="button" className={"btn btn-xs " + (c.disabled ? "btn-disabled" : "btn-outline")} disabled={c.disabled} onClick={() => { c.onClick?.(); onClose(); }}>
+                <Chip
+                  key={j}
+                  sm
+                  disabled={c.disabled}
+                  onClick={() => {
+                    c.onClick?.();
+                    onClose();
+                  }}
+                >
                   {c.label}
-                </button>
+                </Chip>
               ))}
             </div>
-          </li>
+          </div>
         );
       return (
-        <li key={i} className={it.disabled ? "menu-disabled" : ""}>
-          <button
-            type="button"
-            className={"flex justify-between gap-4 " + (it.danger ? "text-error" : "")}
-            disabled={it.disabled}
-            onClick={() => {
-              it.onClick?.();
-              onClose();
-            }}
-          >
-            <span>{it.label}</span>
-            {it.hint ? <span className="font-mono text-[11px] opacity-50">{it.hint}</span> : null}
-          </button>
-        </li>
+        <button
+          key={i}
+          type="button"
+          className={"menu-item" + (it.danger ? " danger" : "")}
+          disabled={it.disabled}
+          onClick={() => {
+            it.onClick?.();
+            onClose();
+          }}
+        >
+          <span className="truncate">{it.label}</span>
+          {it.hint ? <span className="hint">{it.hint}</span> : null}
+        </button>
       );
     });
   return (
-    <ul
-      ref={ref}
-      className="menu menu-sm fixed z-[200] w-64 rounded-box border border-base-300 bg-base-100 p-1 shadow-xl"
-      style={{ left: pos?.x ?? menu.x, top: pos?.y ?? menu.y, visibility: pos ? "visible" : "hidden" }}
-      onContextMenu={(e) => e.preventDefault()}
-    >
+    <div ref={ref} className="menu fixed z-[200] w-64" role="menu" style={{ left: pos?.x ?? menu.x, top: pos?.y ?? menu.y, visibility: pos ? "visible" : "hidden" }} onContextMenu={(e) => e.preventDefault()}>
       {render(menu.items)}
-    </ul>
+    </div>
   );
 }

@@ -1,3 +1,4 @@
+import { mdiAccountGroupOutline, mdiCalendar, mdiCalendarMonthOutline, mdiChevronLeft, mdiChevronRight, mdiClose, mdiLoading, mdiPlus } from "@mdi/js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { addDays, api, describeStart, fmtTime, hhmm, todayISO, type useLive } from "../api";
 import { ChapterEditor } from "../components/ChapterEditor";
@@ -7,7 +8,7 @@ import { musicSummary } from "../components/MusicRow";
 import { useSensorGroups } from "../components/SensorRef";
 import { WindowsEditor, defaultStart } from "../components/StartEditor";
 import type { TrackContext } from "../components/Track";
-import { COLORS, Confirm, Field, Pill, toast } from "../components/ui";
+import { Btn, COLORS, Chip, Confirm, Field, Fold, Icon, IconBtn, Page, Row, Section, Segmented, toast } from "../components/ui";
 import type { CadenceScene, Chapter, DayPlan, DayView, ResolvedChapter, Template } from "../types";
 
 const HOUR_H = 44; // px per hour
@@ -90,10 +91,13 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
   }, [loading]);
 
   const refreshDay = useCallback(async (date: string) => fetchRange(date, date), [fetchRange]);
-  const refreshDays = useCallback(async (dates: string[]) => {
-    const sorted = [...dates].sort();
-    await fetchRange(sorted[0], sorted[sorted.length - 1]);
-  }, [fetchRange]);
+  const refreshDays = useCallback(
+    async (dates: string[]) => {
+      const sorted = [...dates].sort();
+      await fetchRange(sorted[0], sorted[sorted.length - 1]);
+    },
+    [fetchRange],
+  );
 
   /** Any chapter edit takes the day off its template first, then applies `fn` to the day's own chapters. */
   const editOwn = useCallback(
@@ -161,10 +165,29 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
       items.push({ label: "Add chapter here", hint: at, onClick: () => editOwn(d, (p) => ({ ...p, chapters: [...(p.chapters ?? []), newChapter(at, p)] }), `Added a chapter at ${at}`) });
       items.push({ label: "Open day…", onClick: () => setOpen(d.date) });
       items.push({ divider: true, label: "" });
-      items.push({ label: "Copy day", onClick: () => { setClipboard(d.date); setPicked(new Set()); toast(`Copied ${fmtDay(d.date)} — pick days, then paste`); } });
+      items.push({
+        label: "Copy day",
+        onClick: () => {
+          setClipboard(d.date);
+          setPicked(new Set());
+          toast(`Copied ${fmtDay(d.date)} — pick days, then paste`);
+        },
+      });
       if (clipboard && clipboard !== d.date) items.push({ label: `Paste ${fmtDay(clipboard)} here`, onClick: () => pasteOnto([d.date]) });
       if (clipboard && picked.size) items.push({ label: `Paste onto ${picked.size} selected day${picked.size > 1 ? "s" : ""}`, onClick: () => pasteOnto([...picked]) });
-      if (d.detached || d.plan?.decision) items.push({ label: d.detached ? "Reset to template" : "Let rules decide again", danger: true, onClick: () => api.post(`api/plans/${d.date}/reset`).then(() => refreshDay(d.date)).then(() => toast(`${fmtDay(d.date)} back to rules and default`), (e) => toast(e.message, true)) });
+      if (d.detached || d.plan?.decision)
+        items.push({
+          label: d.detached ? "Reset to template" : "Let rules decide again",
+          danger: true,
+          onClick: () =>
+            api
+              .post(`api/plans/${d.date}/reset`)
+              .then(() => refreshDay(d.date))
+              .then(
+                () => toast(`${fmtDay(d.date)} back to rules and default`),
+                (e) => toast(e.message, true),
+              ),
+        });
       if (isToday) items.push({ label: "Recompute now", onClick: () => api.post("api/engine/recompute").then(() => toast("Recomputed")) });
     }
     setMenu({ x: ctx.x, y: ctx.y, items });
@@ -186,33 +209,63 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
   })();
   const openView = open ? cache[open] ?? null : null;
 
-  return (
-    <div className="flex h-full min-h-0 flex-col">
-      {/* toolbar */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-base-300 bg-base-100 px-4 py-2">
-        <div className="join">
-          <button className="btn btn-sm btn-ghost join-item" onClick={() => setStart(addDays(start, -7))} aria-label="Previous week">‹</button>
-          <button className="btn btn-sm btn-ghost join-item" onClick={() => setStart(weekStart(today))}>Today</button>
-          <button className="btn btn-sm btn-ghost join-item" onClick={() => setStart(addDays(start, 7))} aria-label="Next week">›</button>
-        </div>
-        <span className="display text-lg">{weekLabel}</span>
-        <div className="relative">
-          <button className={"btn btn-sm btn-ghost btn-circle " + (calOpen ? "bg-base-200" : "")} title="Jump to a date" onClick={() => { setCalMonth(monthStart(start)); setCalOpen((v) => !v); }} aria-label="Calendar">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></svg>
-          </button>
-          {calOpen ? <MonthPopover month={calMonth} today={today} cache={cache} onMonth={setCalMonth} onPick={(d) => { setStart(weekStart(d)); setCalOpen(false); }} onClose={() => setCalOpen(false)} /> : null}
-        </div>
-        {loading ? <span className="loading loading-dots loading-xs opacity-60" /> : null}
-        <div className="ml-auto flex items-center gap-3 text-[11px] opacity-60">
-          <span><span className="occ-dot bg-primary" /> rule</span>
-          <span><span className="occ-dot bg-secondary" /> chosen</span>
-          <span><span className="occ-dot bg-base-content/40" /> own chapters</span>
-          <span><span className="occ-dot bg-warning" /> rules clash</span>
-        </div>
+  const actions = (
+    <>
+      {loading ? <Icon path={mdiLoading} className="spin muted" size="sm" /> : null}
+      <div className="legend hidden md:flex">
+        <span>
+          <span className="occ-dot rule" /> rule
+        </span>
+        <span>
+          <span className="occ-dot chosen" /> chosen
+        </span>
+        <span>
+          <span className="occ-dot own" /> own chapters
+        </span>
+        <span>
+          <span className="occ-dot clash" /> rules clash
+        </span>
       </div>
+      <div className="flex items-center gap-1">
+        <IconBtn icon={mdiChevronLeft} size="sm" label="Previous week" onClick={() => setStart(addDays(start, -7))} />
+        <Btn sm onClick={() => setStart(weekStart(today))}>
+          Today
+        </Btn>
+        <IconBtn icon={mdiChevronRight} size="sm" label="Next week" onClick={() => setStart(addDays(start, 7))} />
+      </div>
+      <div className="relative">
+        <IconBtn
+          icon={mdiCalendar}
+          size="sm"
+          soft
+          label="Calendar"
+          className={calOpen ? "on" : ""}
+          onClick={() => {
+            setCalMonth(monthStart(start));
+            setCalOpen((v) => !v);
+          }}
+        />
+        {calOpen ? (
+          <MonthPopover
+            month={calMonth}
+            today={today}
+            cache={cache}
+            onMonth={setCalMonth}
+            onPick={(d) => {
+              setStart(weekStart(d));
+              setCalOpen(false);
+            }}
+            onClose={() => setCalOpen(false)}
+          />
+        ) : null}
+      </div>
+    </>
+  );
 
+  return (
+    <Page flush title={weekLabel} icon={mdiCalendarMonthOutline} actions={actions} className="min-h-0">
       {/* day headers */}
-      <div className="grid border-b border-base-300 bg-base-100" style={{ gridTemplateColumns: `${GUTTER}px repeat(7, minmax(0, 1fr))` }}>
+      <div className="week-head" style={{ gridTemplateColumns: `${GUTTER}px repeat(7, minmax(0, 1fr))` }}>
         <div />
         {weekDays.map((date) => {
           const d = cache[date];
@@ -222,21 +275,33 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
           const inPick = picked.has(date);
           const tint = d ? templates.find((t) => t.id === d.template_id)?.color ?? null : null;
           return (
-            <div key={date} className={"group relative border-l border-base-300/60 px-2 py-2 " + (isToday ? "bg-accent/5" : "") + (inPick ? " bg-secondary/10" : "")} style={tint ? { boxShadow: `inset 0 3px 0 ${tint}` } : undefined}>
+            <div key={date} className={"day-head" + (isToday ? " today" : "") + (inPick ? " picked" : "")} style={tint ? { boxShadow: `inset 0 3px 0 ${tint}` } : undefined}>
               <button type="button" className="flex w-full items-baseline gap-1.5 text-left" onClick={() => (clipboard ? togglePick(date) : setOpen(date))} title={clipboard ? "Select for paste" : "Open this day"}>
-                <span className={"text-[11px] uppercase tracking-wide " + (isToday ? "text-accent" : "opacity-50")}>{dt.toLocaleDateString([], { weekday: "short" })}</span>
-                <span className={"display text-xl leading-none " + (isToday ? "text-accent" : quiet ? "opacity-40" : "")}>{dt.getDate()}</span>
+                <span className="dow">{dt.toLocaleDateString([], { weekday: "short" })}</span>
+                <span className={"num" + (quiet && !isToday ? " opacity-40" : "")}>{dt.getDate()}</span>
                 {d ? <OccDots d={d} /> : null}
-                {clipboard ? <input type="checkbox" className="checkbox checkbox-xs checkbox-secondary ml-auto" checked={inPick} readOnly /> : null}
+                {clipboard ? <input type="checkbox" className="ml-auto" checked={inPick} readOnly aria-label="Select for paste" /> : null}
               </button>
-              <div className={"mt-0.5 flex items-center gap-1 text-[11px] " + (quiet ? "opacity-40" : "opacity-60") + (d?.predicted && d.template_kind === "rule" ? " italic" : "")} title={d ? `${d.template_reason}${d.predicted ? " (expected)" : d.decided ? " (settled)" : ""} · ${OCC_LABEL[d.occupied_reason] ?? ""}${d.pending_rules.length ? "\nMay still become: " + d.pending_rules.map((r) => r.rule_name).join(", ") : ""}` : ""}>
+              <div
+                className={"tl" + (quiet ? " opacity-60" : "") + (d?.predicted && d.template_kind === "rule" ? " italic" : "")}
+                title={d ? `${d.template_reason}${d.predicted ? " (expected)" : d.decided ? " (settled)" : ""} · ${OCC_LABEL[d.occupied_reason] ?? ""}${d.pending_rules.length ? "\nMay still become: " + d.pending_rules.map((r) => r.rule_name).join(", ") : ""}` : ""}
+              >
                 <span className="truncate">{d ? templateLine(d) : ""}</span>
-                {d && d.conflicts.length ? <span className="text-warning" title={"Also matched: " + d.conflicts.map((c) => c.rule_name).join(", ") + ". The first rule wins."}>⚠</span> : null}
-                {d && d.pending_rules.length && !d.detached && d.template_kind !== "rule" && d.template_kind !== "custom" ? <span className="opacity-70" title={"May still become: " + d.pending_rules.map((r) => r.rule_name).join(", ")}>?</span> : null}
+                {d && d.conflicts.length ? (
+                  <span style={{ color: "var(--warn)" }} title={"Also matched: " + d.conflicts.map((c) => c.rule_name).join(", ") + ". The first rule wins."}>
+                    ⚠
+                  </span>
+                ) : null}
+                {d && d.pending_rules.length && !d.detached && d.template_kind !== "rule" && d.template_kind !== "custom" ? (
+                  <span className="opacity-70" title={"May still become: " + d.pending_rules.map((r) => r.rule_name).join(", ")}>
+                    ?
+                  </span>
+                ) : null}
               </div>
               {d && d.events.length ? (
-                <div className="truncate text-[11px] text-primary" title={d.events.map((e) => e.summary ?? "").join("\n")}>
-                  {d.events[0].summary}{d.events.length > 1 ? ` +${d.events.length - 1}` : ""}
+                <div className="ev" title={d.events.map((e) => e.summary ?? "").join("\n")}>
+                  {d.events[0].summary}
+                  {d.events.length > 1 ? ` +${d.events.length - 1}` : ""}
                 </div>
               ) : null}
             </div>
@@ -245,11 +310,11 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
       </div>
 
       {/* week grid */}
-      <div ref={gridRef} className="relative min-h-0 flex-1 overflow-auto bg-base-100">
+      <div ref={gridRef} className="relative min-h-0 flex-1 overflow-auto">
         <div className="grid" style={{ gridTemplateColumns: `${GUTTER}px repeat(7, minmax(0, 1fr))`, height: HOUR_H * 24 }}>
           <div className="relative">
             {Array.from({ length: 24 }, (_, h) => (
-              <div key={h} className="absolute right-2 -translate-y-1/2 font-mono text-[10px] opacity-50" style={{ top: h * HOUR_H }}>
+              <div key={h} className="hour-label" style={{ top: h * HOUR_H }}>
                 {h === 0 ? "" : `${String(h).padStart(2, "0")}:00`}
               </div>
             ))}
@@ -272,7 +337,7 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
                 onContext={(ctx) => openMenu(d, ctx)}
                 onMoveStart={(c, minute) => setChapterStart(d, c, hhmm(minute))}
                 emptyText={d.template_kind === "none" || (d.template_kind === "rule" && !d.template_id) ? "nothing runs" : undefined}
-                className={picked.has(date) ? "bg-secondary/5" : ""}
+                className={picked.has(date) ? "picked" : ""}
               />
             );
           })}
@@ -281,16 +346,23 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
 
       {/* paste bar */}
       {clipboard ? (
-        <div className="flex items-center gap-3 border-t border-base-300 bg-base-100 px-4 py-2 text-sm">
+        <div className="pastebar">
           <span>
             Copied <b>{fmtDay(clipboard)}</b>. Click day headers to select.
           </span>
-          <button className="btn btn-sm btn-secondary" disabled={picked.size === 0} onClick={() => pasteOnto([...picked])}>
+          <Btn variant="primary" sm disabled={picked.size === 0} onClick={() => pasteOnto([...picked])}>
             Paste onto {picked.size || ""} day{picked.size === 1 ? "" : "s"}
-          </button>
-          <button className="btn btn-sm btn-ghost" onClick={() => { setClipboard(null); setPicked(new Set()); }}>
+          </Btn>
+          <Btn
+            variant="ghost"
+            sm
+            onClick={() => {
+              setClipboard(null);
+              setPicked(new Set());
+            }}
+          >
             Done
-          </button>
+          </Btn>
         </div>
       ) : null}
 
@@ -315,7 +387,7 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
         />
       ) : null}
       <ContextMenu menu={menu} onClose={() => setMenu(null)} />
-    </div>
+    </Page>
   );
 }
 
@@ -326,7 +398,7 @@ function fmtDay(iso: string): string {
 /** Small occupancy / customisation marks next to the day number. */
 function kindDot(d: DayView): string | null {
   if (d.detached) return null;
-  return d.template_kind === "rule" ? "bg-primary" : d.template_kind === "custom" ? "bg-secondary" : null;
+  return d.template_kind === "rule" ? "rule" : d.template_kind === "custom" ? "chosen" : null;
 }
 
 function OccDots({ d }: { d: DayView }) {
@@ -334,8 +406,8 @@ function OccDots({ d }: { d: DayView }) {
   return (
     <span className="flex items-center gap-0.5" title={`${d.template_reason}${d.detached ? " · own chapters" : ""}`}>
       {dot ? <span className={"occ-dot " + dot + (d.predicted ? " opacity-50" : "")} /> : null}
-      {d.detached ? <span className="occ-dot bg-base-content/40" /> : null}
-      {d.conflicts.length ? <span className="occ-dot bg-warning" /> : null}
+      {d.detached ? <span className="occ-dot own" /> : null}
+      {d.conflicts.length ? <span className="occ-dot clash" /> : null}
     </span>
   );
 }
@@ -361,13 +433,13 @@ function MonthPopover(props: { month: string; today: string; cache: Record<strin
   const prev = addDays(first, -1).slice(0, 8) + "01";
   const nextM = addDays(first, 32).slice(0, 8) + "01";
   return (
-    <div ref={ref} className="absolute top-full left-0 z-[120] mt-1 w-72 rounded-box border border-base-300 bg-base-100 p-3 shadow-xl">
+    <div ref={ref} className="month-pop">
       <div className="mb-2 flex items-center justify-between">
-        <button className="btn btn-xs btn-ghost" onClick={() => props.onMonth(prev)} aria-label="Previous month">‹</button>
-        <span className="display text-base">{m.toLocaleDateString([], { month: "long", year: "numeric" })}</span>
-        <button className="btn btn-xs btn-ghost" onClick={() => props.onMonth(nextM)} aria-label="Next month">›</button>
+        <IconBtn icon={mdiChevronLeft} size="xs" label="Previous month" onClick={() => props.onMonth(prev)} />
+        <span className="text-sm font-semibold">{m.toLocaleDateString([], { month: "long", year: "numeric" })}</span>
+        <IconBtn icon={mdiChevronRight} size="xs" label="Next month" onClick={() => props.onMonth(nextM)} />
       </div>
-      <div className="grid grid-cols-7 gap-y-0.5 text-center text-[10px] uppercase opacity-50">
+      <div className="grid grid-cols-7 gap-y-0.5 text-center text-[10px] uppercase muted">
         {["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].map((w) => (
           <span key={w}>{w}</span>
         ))}
@@ -379,20 +451,24 @@ function MonthPopover(props: { month: string; today: string; cache: Record<strin
           const isToday = date === props.today;
           const occ = d ? kindDot(d) : null;
           return (
-            <button key={date} type="button" className={"flex h-8 flex-col items-center justify-center rounded-field text-xs hover:bg-base-200 " + (inMonth ? "" : "opacity-30 ") + (isToday ? "font-bold text-accent" : "")} onClick={() => props.onPick(date)} title={d ? templateLine(d) : undefined}>
+            <button key={date} type="button" className={"cell" + (inMonth ? "" : " out") + (isToday ? " today" : "")} onClick={() => props.onPick(date)} title={d ? templateLine(d) : undefined}>
               <span>{Number(date.slice(8, 10))}</span>
               <span className="flex h-1.5 items-center gap-0.5">
                 {occ ? <span className={"occ-dot " + occ} /> : null}
-                {d?.detached ? <span className="occ-dot bg-base-content/40" /> : null}
-                {d?.conflicts.length ? <span className="occ-dot bg-warning" /> : null}
+                {d?.detached ? <span className="occ-dot own" /> : null}
+                {d?.conflicts.length ? <span className="occ-dot clash" /> : null}
               </span>
             </button>
           );
         })}
       </div>
       <div className="mt-2 flex justify-between">
-        <button className="btn btn-xs btn-ghost" onClick={() => props.onMonth(monthStart(props.today))}>This month</button>
-        <button className="btn btn-xs btn-ghost" onClick={() => props.onPick(props.today)}>Today</button>
+        <Btn variant="ghost" sm onClick={() => props.onMonth(monthStart(props.today))}>
+          This month
+        </Btn>
+        <Btn variant="ghost" sm onClick={() => props.onPick(props.today)}>
+          Today
+        </Btn>
       </div>
     </div>
   );
@@ -443,12 +519,12 @@ function ChapterDetail({ res, fade }: { res: ResolvedChapter | undefined; fade: 
     groups.set(key, [...(groups.get(key) ?? []), zone].filter(Boolean));
   }
   return (
-    <div className="mt-1 flex flex-col gap-0.5 pl-6 text-[11px] opacity-70">
+    <div className="flex flex-col gap-0.5 pl-6 text-[11px] muted">
       {fade ? <div>fade {fade} min</div> : null}
       {[...groups.entries()].map(([text, zones], i) => (
         <div key={i} className="truncate">
           <span className="opacity-70">♫</span> {text}
-          {zones.length ? <span className="font-mono opacity-60"> · {zones.join(", ")}</span> : null}
+          {zones.length ? <span className="mono opacity-70"> · {zones.join(", ")}</span> : null}
         </div>
       ))}
     </div>
@@ -498,182 +574,223 @@ function DayPane(props: { view: DayView; templates: Template[]; scenes: CadenceS
   const vacant = view.occupied === false;
   const dt = new Date(view.date + "T12:00:00");
 
+  const runsTitle = own ? "Own chapters" : view.template_name ?? "Nothing runs";
+  const runsHelp = own
+    ? "This day's chapters live on this date only. They are not a template; copy the day to reuse them."
+    : view.template_kind === "custom"
+      ? "Template chosen for this day. Rules leave it alone."
+      : view.template_kind === "rule"
+        ? `Rule "${view.rule_name}" (${view.template_reason.split(" · ").slice(1).join(" · ") || "matched"})${view.decided ? ", settled for the day." : view.predicted ? ", expected from the calendar." : "."}`
+        : view.template_kind === "default"
+          ? `The default template${view.predicted ? ", unless a rule takes the day" : ""}. Editing any chapter gives this day its own copy.`
+          : "No rule took this day and there is no default template.";
+
+  const chapterHead = (c: Chapter, res: ResolvedChapter | undefined) => (
+    <>
+      <span className="swatch" style={{ background: c.color ?? "#556" }} />
+      <span className={"ft" + (c.enabled ? "" : " opacity-50")}>{c.name}</span>
+      <span className="fs">{res?.start ? fmtTime(res.start) : describeStart(c.start, groups)}</span>
+    </>
+  );
+
   return (
     <>
-      <div className="pane-backdrop" onMouseDown={props.onClose} />
-      <div className="pane flex flex-col gap-4 p-4" role="dialog" aria-label={`Plan for ${fmtDay(view.date)}`}>
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <div className="eyebrow">{dt.toLocaleDateString([], { weekday: "long" })}</div>
-            <div className="display text-2xl leading-tight">{dt.toLocaleDateString([], { month: "long", day: "numeric" })}</div>
-          </div>
-          <button className="btn btn-ghost btn-sm btn-circle" onClick={props.onClose} aria-label="Close">✕</button>
-        </div>
-
-        {/* what runs */}
-        <div className="rounded-box border border-base-300 p-3" style={tmpl?.color ? { boxShadow: `inset 3px 0 0 ${tmpl.color}` } : undefined}>
-          <div className="flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              <div className="text-sm font-semibold">{own ? "Own chapters" : view.template_name ?? "Nothing runs"}</div>
-              <div className="text-xs opacity-60">
-                {own
-                  ? "This day's chapters live on this date only. They are not a template; copy the day to reuse them."
-                  : view.template_kind === "custom"
-                    ? "Template chosen for this day. Rules leave it alone."
-                    : view.template_kind === "rule"
-                      ? `Rule "${view.rule_name}" (${view.template_reason.split(" · ").slice(1).join(" · ") || "matched"})${view.decided ? ", settled for the day." : view.predicted ? ", expected from the calendar." : "."}`
-                      : view.template_kind === "default"
-                        ? `The default template${view.predicted ? ", unless a rule takes the day" : ""}. Editing any chapter gives this day its own copy.`
-                        : "No rule took this day and there is no default template."}
-              </div>
-              {view.conflicts.length ? <div className="mt-1 text-xs text-warning">Also matched: {view.conflicts.map((c) => c.rule_name).join(", ")}. The first rule in the list wins; reorder them under Templates → Rules.</div> : null}
-              {view.pending_rules.length && !own && view.template_kind !== "custom" && view.template_kind !== "rule" ? <div className="mt-1 text-xs opacity-60">May still become: {view.pending_rules.map((r) => `${r.rule_name}${r.template_name ? ` (${r.template_name})` : ""}`).join(", ")} — sensor rules are checked on the day.</div> : null}
-            </div>
-            {own ? (
-              <Confirm text="Back to template?" onYes={reset} className="btn btn-sm btn-ghost text-error">
-                Reset
-              </Confirm>
-            ) : view.template_id ? (
-              <button className="btn btn-sm btn-outline" disabled={saving} onClick={detach}>Customise</button>
+      <div className="backdrop" onMouseDown={props.onClose} />
+      <div className="pane" role="dialog" aria-label={`Plan for ${fmtDay(view.date)}`}>
+        <header className="content-head">
+          <h2>
+            {dt.toLocaleDateString([], { weekday: "long" })}, {dt.toLocaleDateString([], { month: "long", day: "numeric" })}
+          </h2>
+          <button type="button" className="close" onClick={props.onClose} aria-label="Close">
+            <Icon path={mdiClose} />
+          </button>
+        </header>
+        <div className="body">
+          {/* what runs */}
+          <Section
+            tint={own ? "accent" : undefined}
+            title={runsTitle}
+            style={tmpl?.color && !own ? { boxShadow: `inset 4px 0 0 ${tmpl.color}` } : undefined}
+            actions={
+              own ? (
+                <Confirm text="Back to template?" onYes={reset} className="pill-btn danger" sm>
+                  Reset
+                </Confirm>
+              ) : view.template_id ? (
+                <Btn sm disabled={saving} onClick={detach}>
+                  Customise
+                </Btn>
+              ) : null
+            }
+          >
+            <p className="help">{runsHelp}</p>
+            {view.conflicts.length ? (
+              <p className="help" style={{ color: "var(--warn)" }}>
+                Also matched: {view.conflicts.map((c) => c.rule_name).join(", ")}. The first rule in the list wins; reorder them under Templates → Rules.
+              </p>
             ) : null}
-          </div>
-          {!own ? (
-            <Field label="Template for this day" className="mt-2">
-              <select className="select select-sm w-full" value={plan.template_id ?? ""} onChange={(e) => setPlan({ ...plan, template_id: e.target.value || null })}>
-                <option value="">Automatic (rules, then the default)</option>
-                {props.templates.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          ) : null}
-          {!own && plan.decision && !plan.template_id ? (
-            <div className="mt-2 flex items-center justify-between gap-2 text-xs">
-              <span className="opacity-60">Decided {fmtTime(plan.decision.at)} by "{plan.decision.rule_name}".</span>
-              <Confirm text="Let rules decide again?" onYes={reset} className="btn btn-xs btn-ghost">
-                Undo
-              </Confirm>
-            </div>
-          ) : null}
-        </div>
-
-        {/* occupancy & calendar */}
-        <div className="rounded-box border border-base-300 p-3">
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <div className="text-sm font-semibold">{vacant ? "Vacant" : "Occupied"}</div>
-              <div className="text-xs opacity-60">
-                {view.occupied_reason === "forced" ? "Forced occupied. Variants that ask for an occupied day match." : view.occupied_reason === "forced_off" ? "Forced vacant. Variants that ask for an occupied day do not match." : view.occupied_reason === "rule" ? "Set by the rule that took this day." : view.occupied_reason === "template" ? "A template runs, so the day counts as occupied for variant conditions." : "Nothing runs, so the day counts as vacant."}
+            {view.pending_rules.length && !own && view.template_kind !== "custom" && view.template_kind !== "rule" ? <p className="help">May still become: {view.pending_rules.map((r) => `${r.rule_name}${r.template_name ? ` (${r.template_name})` : ""}`).join(", ")} — sensor rules are checked on the day.</p> : null}
+            {!own ? (
+              <Field label="Template for this day">
+                <select className="select sm w-full" value={plan.template_id ?? ""} onChange={(e) => setPlan({ ...plan, template_id: e.target.value || null })}>
+                  <option value="">Automatic (rules, then the default)</option>
+                  {props.templates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            ) : null}
+            {!own && plan.decision && !plan.template_id ? (
+              <div className="flex items-center justify-between gap-2">
+                <span className="help">
+                  Decided {fmtTime(plan.decision.at)} by "{plan.decision.rule_name}".
+                </span>
+                <Confirm text="Let rules decide again?" onYes={reset} className="pill-btn ghost" sm>
+                  Undo
+                </Confirm>
               </div>
-            </div>
-            {view.occupied_reason === "forced" || view.occupied_reason === "forced_off" ? (
-              <button className="btn btn-sm btn-ghost" disabled={saving} onClick={() => occ(null)}>Automatic</button>
-            ) : (
-              <button className="btn btn-sm btn-ghost" disabled={saving} onClick={() => occ(!vacant ? false : true)}>{vacant ? "Mark occupied" : "Mark vacant"}</button>
-            )}
-          </div>
-          {view.events.length ? (
-            <div className="mt-2 border-t border-base-300 pt-2 text-xs">
-              {view.events.map((e, i) => (
-                <div key={i} className="truncate">
-                  <span className="font-mono opacity-60">{e.all_day ? "all day" : fmtTime(e.start) + "–" + fmtTime(e.end)}</span> {e.summary}
+            ) : null}
+          </Section>
+
+          {/* occupancy & calendar */}
+          <Section>
+            <Row
+              icon={mdiAccountGroupOutline}
+              tone={vacant ? undefined : "on"}
+              title={vacant ? "Vacant" : "Occupied"}
+              sub={
+                view.occupied_reason === "forced"
+                  ? "Forced occupied. Variants that ask for an occupied day match."
+                  : view.occupied_reason === "forced_off"
+                    ? "Forced vacant. Variants that ask for an occupied day do not match."
+                    : view.occupied_reason === "rule"
+                      ? "Set by the rule that took this day."
+                      : view.occupied_reason === "template"
+                        ? "A template runs, so the day counts as occupied for variant conditions."
+                        : "Nothing runs, so the day counts as vacant."
+              }
+              right={
+                view.occupied_reason === "forced" || view.occupied_reason === "forced_off" ? (
+                  <Btn sm disabled={saving} onClick={() => occ(null)}>
+                    Automatic
+                  </Btn>
+                ) : (
+                  <Btn sm disabled={saving} onClick={() => occ(!vacant ? false : true)}>
+                    {vacant ? "Mark occupied" : "Mark vacant"}
+                  </Btn>
+                )
+              }
+            />
+            {view.events.length ? (
+              <>
+                <div className="divider" />
+                <div className="flex flex-col gap-0.5">
+                  {view.events.map((e, i) => (
+                    <p key={i} className="help truncate">
+                      <span className="tnum">{e.all_day ? "all day" : fmtTime(e.start) + "–" + fmtTime(e.end)}</span> {e.summary}
+                    </p>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </>
+            ) : null}
+          </Section>
+
+          <Field label="Auto mode">
+            <Segmented
+              sm
+              value={plan.auto}
+              onChange={(m) => setPlan({ ...plan, auto: m })}
+              options={[
+                { value: "default", label: "Weekly schedule" },
+                { value: "on", label: "On all day" },
+                { value: "off", label: "Off all day" },
+                { value: "windows", label: "Custom hours" },
+              ]}
+            />
+            {plan.auto === "windows" ? (
+              <div className="mt-2">
+                <WindowsEditor value={plan.auto_windows} onChange={(w) => setPlan({ ...plan, auto_windows: w })} />
+              </div>
+            ) : null}
+          </Field>
+          <Field label="Notes for the team">
+            <textarea className="textarea w-full" value={plan.notes} onChange={(e) => setPlan({ ...plan, notes: e.target.value })} placeholder="Retreat group arriving at 4, keep the lounge bright…" />
+          </Field>
+
+          <div className="sec-head">
+            <span className="t">Chapters</span>
+            <span className="count">{own ? `${own.length} own` : tmpl ? `${(tmpl.chapters ?? []).length} from ${tmpl.name}` : ""}</span>
+          </div>
+          {own
+            ? own.map((c) => {
+                const res = resolved(c.id);
+                const isOpen = openCh === c.id;
+                return (
+                  <Fold
+                    key={c.id}
+                    innerRef={props.focusChapter === c.id ? focusRef : undefined}
+                    open={isOpen}
+                    onToggle={() => setOpenCh(isOpen ? null : c.id)}
+                    dim={!c.enabled}
+                    head={chapterHead(c, res)}
+                    right={
+                      <Confirm text="Remove?" icon={mdiClose} iconOnly sm onYes={() => setPlan({ ...plan, chapters: own.filter((x) => x.id !== c.id), chapter_overrides: plan.chapter_overrides.filter((o) => o.chapter_id !== c.id) })}>
+                        Remove chapter
+                      </Confirm>
+                    }
+                  >
+                    {c.variants.length > 1 ? (
+                      <div className="chips">
+                        <span className="help">Force variant</span>
+                        <Chip auto sm active={!vk(c.id)} onClick={() => setPlan(setVariant(plan, c.id, null))}>
+                          Auto
+                        </Chip>
+                        {c.variants.map((v) => (
+                          <Chip key={v.key} sm active={vk(c.id) === v.key} onClick={() => setPlan(setVariant(plan, c.id, v.key))}>
+                            {v.label}
+                          </Chip>
+                        ))}
+                      </div>
+                    ) : null}
+                    <ChapterEditor chapter={c} scenes={props.scenes} onChange={(patch) => setPlan({ ...plan, chapters: own.map((x) => (x.id === c.id ? { ...x, ...patch } : x)) })} />
+                  </Fold>
+                );
+              })
+            : (tmpl?.chapters ?? []).map((c) => {
+                const res = resolved(c.id);
+                return (
+                  <div key={c.id} ref={props.focusChapter === c.id ? focusRef : undefined} className={"sub" + (c.enabled ? "" : " opacity-50")}>
+                    <div className="flex items-center gap-2 min-w-0">{chapterHead(c, res)}</div>
+                    <ChapterDetail res={res} fade={c.fade_minutes} />
+                  </div>
+                );
+              })}
+          {own ? (
+            <button
+              type="button"
+              className="add-tile"
+              onClick={() => {
+                const ch = newChapter("12:00", plan);
+                setPlan({ ...plan, chapters: [...own, ch] });
+                setOpenCh(ch.id);
+              }}
+            >
+              <Icon path={mdiPlus} />
+              Chapter
+            </button>
+          ) : tmpl ? (
+            <p className="help">Following the template. Drag a chapter on the grid, right-click it, or press Customise to refine this day.</p>
           ) : null}
         </div>
-
-        <Field label="Auto mode">
-          <div className="flex flex-wrap gap-1.5">
-            {(["default", "on", "off", "windows"] as const).map((m) => (
-              <Pill key={m} active={plan.auto === m} onClick={() => setPlan({ ...plan, auto: m })}>
-                {m === "default" ? "Weekly schedule" : m === "windows" ? "Custom hours" : m === "on" ? "On all day" : "Off all day"}
-              </Pill>
-            ))}
-          </div>
-          {plan.auto === "windows" ? (
-            <div className="mt-2">
-              <WindowsEditor value={plan.auto_windows} onChange={(w) => setPlan({ ...plan, auto_windows: w })} />
-            </div>
-          ) : null}
-        </Field>
-        <Field label="Notes for the team">
-          <textarea className="textarea textarea-sm w-full" value={plan.notes} onChange={(e) => setPlan({ ...plan, notes: e.target.value })} placeholder="Retreat group arriving at 4, keep the lounge bright…" />
-        </Field>
-
-        <div className="eyebrow">Chapters</div>
-        {own
-          ? own.map((c) => {
-              const res = resolved(c.id);
-              const isOpen = openCh === c.id;
-              return (
-                <div key={c.id} ref={props.focusChapter === c.id ? focusRef : undefined} className={"collapse rounded-box border bg-base-100 " + (isOpen ? "collapse-open border-primary/50" : "collapse-close border-base-300")}>
-                  <div className="collapse-title flex min-h-0 cursor-pointer items-center gap-2 py-2 pr-2" onClick={() => setOpenCh(isOpen ? null : c.id)}>
-                    <span className="swatch" style={{ background: c.color ?? "#556" }} />
-                    <b className={"text-sm " + (c.enabled ? "" : "opacity-50")}>{c.name}</b>
-                    <span className="font-mono text-xs opacity-60">{res?.start ? fmtTime(res.start) : describeStart(c.start, groups)}</span>
-                    <span onClick={(e) => e.stopPropagation()} className="ml-auto">
-                      <Confirm text="Remove?" onYes={() => setPlan({ ...plan, chapters: own.filter((x) => x.id !== c.id), chapter_overrides: plan.chapter_overrides.filter((o) => o.chapter_id !== c.id) })} className="btn btn-ghost btn-xs text-error">
-                        ✕
-                      </Confirm>
-                    </span>
-                  </div>
-                  {!isOpen ? (
-                    <div className="px-4 pb-2">
-                      <ChapterDetail res={res} fade={c.fade_minutes} />
-                    </div>
-                  ) : null}
-                  <div className="collapse-content">
-                    {isOpen ? (
-                      <>
-                        {c.variants.length > 1 ? (
-                          <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs">
-                            <span className="opacity-60">Force variant</span>
-                            <Pill auto active={!vk(c.id)} onClick={() => setPlan(setVariant(plan, c.id, null))}>Auto</Pill>
-                            {c.variants.map((v) => (
-                              <Pill key={v.key} active={vk(c.id) === v.key} onClick={() => setPlan(setVariant(plan, c.id, v.key))}>
-                                {v.label}
-                              </Pill>
-                            ))}
-                          </div>
-                        ) : null}
-                        <ChapterEditor chapter={c} scenes={props.scenes} onChange={(patch) => setPlan({ ...plan, chapters: own.map((x) => (x.id === c.id ? { ...x, ...patch } : x)) })} />
-                      </>
-                    ) : null}
-                  </div>
-                </div>
-              );
-            })
-          : (tmpl?.chapters ?? []).map((c) => {
-              const res = resolved(c.id);
-              return (
-                <div key={c.id} ref={props.focusChapter === c.id ? focusRef : undefined} className={"rounded-box border border-base-300 px-3 py-2 " + (c.enabled ? "" : "opacity-50")}>
-                  <div className="flex items-center gap-2">
-                    <span className="swatch" style={{ background: c.color ?? "#556" }} />
-                    <b className="text-sm">{c.name}</b>
-                    <span className="font-mono text-xs opacity-60">{res?.start ? fmtTime(res.start) : describeStart(c.start, groups)}</span>
-                  </div>
-                  <ChapterDetail res={res} fade={c.fade_minutes} />
-                </div>
-              );
-            })}
-        {own ? (
-          <button className="btn btn-sm btn-outline border-dashed self-start" onClick={() => { const ch = newChapter("12:00", plan); setPlan({ ...plan, chapters: [...own, ch] }); setOpenCh(ch.id); }}>
-            + Chapter
-          </button>
-        ) : tmpl ? (
-          <p className="text-xs opacity-60">Following the template. Drag a chapter on the grid, right-click it, or press Customise to refine this day.</p>
-        ) : null}
-
-        <div className="sticky bottom-0 -mx-4 -mb-4 mt-auto flex gap-2 border-t border-base-300 bg-base-100 px-4 py-3">
-          <button className="btn btn-primary btn-sm" disabled={saving || !dirty} onClick={save}>
+        <div className="pane-foot">
+          <Btn variant="primary" disabled={saving || !dirty} onClick={save}>
             Save day
-          </button>
-          <button className="btn btn-sm btn-ghost" onClick={props.onCopy} title="Copy this day's chapters to paste onto other days">
+          </Btn>
+          <Btn variant="ghost" onClick={props.onCopy} title="Copy this day's chapters to paste onto other days">
             Copy day
-          </button>
+          </Btn>
         </div>
       </div>
     </>
