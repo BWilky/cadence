@@ -1,6 +1,6 @@
 import { mdiAccountGroupOutline, mdiCalendar, mdiCalendarMonthOutline, mdiChevronLeft, mdiChevronRight, mdiClose, mdiLoading, mdiPlus } from "@mdi/js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { addDays, api, describeStart, fmtTime, hhmm, todayISO, type useLive } from "../api";
+import { addDays, api, describeStart, fmtTime, hhmm, minutesOfDay, todayISO, type useLive } from "../api";
 import { ChapterEditor } from "../components/ChapterEditor";
 import { ContextMenu, type MenuItem, type MenuState } from "../components/ContextMenu";
 import { DayColumn } from "../components/DayColumn";
@@ -208,6 +208,7 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
     return `${a.toLocaleDateString([], { month: "short", day: "numeric" })} – ${b.toLocaleDateString([], sameMonth ? { day: "numeric" } : { month: "short", day: "numeric" })}, ${b.getFullYear()}`;
   })();
   const openView = open ? cache[open] ?? null : null;
+  const nowLine = st?.now ? (minutesOfDay(st.now) / 60) * HOUR_H : null;
 
   const actions = (
     <>
@@ -311,7 +312,7 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
 
       {/* week grid */}
       <div ref={gridRef} className="relative min-h-0 flex-1 overflow-auto">
-        <div className="grid" style={{ gridTemplateColumns: `${GUTTER}px repeat(7, minmax(0, 1fr))`, height: HOUR_H * 24 }}>
+        <div className="grid week-grid" style={{ gridTemplateColumns: `${GUTTER}px repeat(7, minmax(0, 1fr))`, height: HOUR_H * 24 }}>
           <div className="relative">
             {Array.from({ length: 24 }, (_, h) => (
               <div key={h} className="hour-label" style={{ top: h * HOUR_H }}>
@@ -319,6 +320,11 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
               </div>
             ))}
           </div>
+          {nowLine != null && weekDays.includes(today) ? (
+            <div className="now-line" style={{ top: nowLine }}>
+              <span className="flag">{hhmm(nowLine / HOUR_H * 60)}</span>
+            </div>
+          ) : null}
           {weekDays.map((date) => {
             const d = cache[date];
             if (!d) return <div key={date} className="daycol" />;
@@ -338,6 +344,7 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
                 onMoveStart={(c, minute) => setChapterStart(d, c, hhmm(minute))}
                 emptyText={d.template_kind === "none" || (d.template_kind === "rule" && !d.template_id) ? "nothing runs" : undefined}
                 className={picked.has(date) ? "picked" : ""}
+                playhead={false}
               />
             );
           })}

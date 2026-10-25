@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { hhmm, minutesOfDay } from "../api";
 import type { DayView, ResolvedChapter } from "../types";
-import { chapterColor } from "./ui";
+import { chapterVars } from "./ui";
 import type { TrackContext } from "./Track";
 
 /** One day as a vertical column: 00:00 at the top, 24:00 at the bottom. */
@@ -15,6 +15,7 @@ export function DayColumn(props: {
   onMoveStart?: (c: ResolvedChapter, minute: number) => void; // drag the top edge
   emptyText?: string;
   className?: string;
+  playhead?: boolean; // false = the parent draws one line across every column
 }) {
   const d = props.view;
   const chapters = d.chapters;
@@ -62,11 +63,12 @@ export function DayColumn(props: {
   };
 
   const tone = d.occupied === false ? "vacant" : d.detached ? "own" : "following";
+  const todayCls = isToday ? "today" : "";
   const enabledStarts = chapters.map((c, i) => (c.enabled && c.start ? starts[i] : null)).filter((m): m is number => m !== null);
   const firstStart = enabledStarts.length ? Math.min(...enabledStarts) : 1440;
 
   return (
-    <div ref={hostRef} className={["daycol", tone, drag ? "dragging" : "", props.className ?? ""].join(" ")} onContextMenu={(e) => ctxFromEvent(e, null)}>
+    <div ref={hostRef} className={["daycol", tone, todayCls, drag ? "dragging" : "", props.className ?? ""].join(" ")} onContextMenu={(e) => ctxFromEvent(e, null)}>
       {Array.from({ length: 24 }, (_, h) => (
         <div key={h} className="hline" style={{ top: pct(h * 60) + "%" }} />
       ))}
@@ -104,9 +106,8 @@ export function DayColumn(props: {
         if (!co) return null;
         const end = co.until ? minutesOfDay(co.until) : firstStart;
         if (end <= 0) return null;
-        const col = chapterColor(co.color);
         return (
-          <div className={"block ghost " + (co.chapter_id === props.currentId ? "current" : "")} style={{ top: 0, height: `calc(${pct(end)}% - 3px)`, ["--c-fill" as string]: col.fill, ["--c-line" as string]: col.line }} title={`${co.name} — carried over from the previous day`}>
+          <div className={"block ghost " + (co.chapter_id === props.currentId ? "current" : "")} style={{ top: 0, height: `calc(${pct(end)}% - 3px)`, ...chapterVars(co.color) }} title={`${co.name} — carried over from the previous day`}>
             <div className="n">↑ {co.name}</div>
           </div>
         );
@@ -129,21 +130,20 @@ export function DayColumn(props: {
           }
         }
         const next = nextIdx >= 0 ? chapters[nextIdx] : null;
-        const col = chapterColor(c.color);
         const v = props.variantOf?.(c);
         const past = nowMin != null && e < nowMin;
         const held = !!c.held_by;
-        const cls = ["block", c.chapter_id === props.currentId ? "current" : "", c.pending_condition ? "cond" : "", held ? "held" : "", past ? "dim" : ""].join(" ");
+        const size = e - s >= 55 ? "tall" : e - s >= 25 ? "mid" : "tiny";
+        const cls = ["block", size, c.chapter_id === props.currentId ? "current" : "", c.pending_condition ? "cond" : "", held ? "held" : "", past ? "dim" : ""].join(" ");
         const startText = held ? `waiting — held by ${c.held_by}` : c.start ? hhmm(s) : c.start_entity ? `waiting for ${c.start_entity} (hard start ${hhmm(s)})` : "waiting (" + hhmm(s) + ")";
         const holdText = c.hold ? `\nHolds while ${c.hold.label ?? c.hold.entity_id} is ${c.hold.while_state}${c.hold.latest ? ` (until ${c.hold.latest})` : ""}` : "";
-        const tall = e - s >= 60;
         const hasMusic = (c.music ?? []).length > 0;
         const timeText = drag?.id === c.chapter_id ? hhmm(drag.minute) : c.pending_condition ? "~" + hhmm(s) : hhmm(s);
         return (
           <div
             key={c.chapter_id + i}
             className={cls}
-            style={{ top: `calc(${pct(s)}% + 1px)`, height: `calc(${Math.max(1.2, pct(e - s))}% - 3px)`, ["--c-fill" as string]: col.fill, ["--c-line" as string]: col.line }}
+            style={{ top: `calc(${pct(s)}% + 1px)`, height: `calc(${Math.max(1.2, pct(e - s))}% - 3px)`, ...chapterVars(c.color) }}
             title={`${c.name} — ${startText}${holdText}${c.note ? "\n" + c.note : ""}`}
             onClick={() => props.onChapter?.(c)}
             onContextMenu={(ev) => ctxFromEvent(ev, c)}
@@ -162,14 +162,18 @@ export function DayColumn(props: {
                 <span className="pill" />
               </div>
             ) : null}
-            <div className="t">
-              <span>{timeText}</span>
-              {held ? <span title={`held by ${c.held_by}`}>⏸</span> : null}
-              {hasMusic ? <span className="mu" title="Music on this chapter">♫</span> : null}
-              {!tall ? <span className="n"> {c.name}</span> : null}
+            <div className="n">
+              <span className="name">{c.name}</span>
+              {held ? <span className="mk" title={`held by ${c.held_by}`}>⏸</span> : null}
+              {hasMusic ? <span className="mk" title="Music on this chapter">♫</span> : null}
+              {size !== "tall" ? <span className="t inline">{timeText}</span> : null}
             </div>
-            {tall ? <div className="n">{c.name}</div> : null}
-            {tall && v ? <div className="v">{v}</div> : null}
+            {size === "tall" ? (
+              <div className="t">
+                {timeText}
+                {v ? <span className="v"> · {v}</span> : null}
+              </div>
+            ) : null}
             {c.hold ? <div className="holdmark" /> : null}
             {props.onMoveStart && next && next.kind === "clock" ? (
               <div
@@ -188,7 +192,7 @@ export function DayColumn(props: {
           </div>
         );
       })}
-      {nowMin != null ? <div className="playhead" style={{ top: pct(nowMin) + "%" }} /> : null}
+      {nowMin != null && props.playhead !== false ? <div className="playhead" style={{ top: pct(nowMin) + "%" }} /> : null}
     </div>
   );
 }

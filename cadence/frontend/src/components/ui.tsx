@@ -498,12 +498,18 @@ export function Dialog(props: { open: boolean; onClose: () => void; title: React
 
 export const SKY_LABEL: Record<string, string> = { sunny: "Sunny", cloudy: "Cloudy", dark: "Dark" };
 
-export function chapterColor(c: string | null | undefined): { fill: string; line: string } {
+export function chapterColor(c: string | null | undefined): { base: string; fill: string; line: string } {
   const hex = c && /^#[0-9a-f]{6}$/i.test(c) ? c : "#7fb1d6";
   const r = parseInt(hex.slice(1, 3), 16),
     g = parseInt(hex.slice(3, 5), 16),
     b = parseInt(hex.slice(5, 7), 16);
-  return { fill: `rgba(${r},${g},${b},0.28)`, line: `rgba(${r},${g},${b},0.75)` };
+  return { base: hex, fill: `rgba(${r},${g},${b},0.28)`, line: `rgba(${r},${g},${b},0.75)` };
+}
+
+/** CSS custom properties a chapter block needs: the raw colour plus the tablet's fill/line pair. */
+export function chapterVars(c: string | null | undefined): React.CSSProperties {
+  const col = chapterColor(c);
+  return { "--c": col.base, "--c-fill": col.fill, "--c-line": col.line } as React.CSSProperties;
 }
 
 export const COLORS = ["#3a4a7a", "#e8b45a", "#f0c86a", "#7fb1d6", "#9cc9a0", "#e89a5a", "#c4706e", "#9a6ab8", "#6ed3c6", "#8a9bb0", "#2a3350"];

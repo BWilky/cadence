@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { hhmm, minutesOfDay } from "../api";
 import type { CalendarEvent, CarryOver, MusicAction, ResolvedChapter, TimeWindow } from "../types";
-import { chapterColor } from "./ui";
+import { chapterVars } from "./ui";
 
 export interface TrackContext {
   minute: number; // time under the pointer
@@ -173,9 +173,8 @@ export function Track(props: {
         const firstStart = startedMins.length ? Math.min(...startedMins) : 1440;
         const end = co.until ? minutesOfDay(co.until) : firstStart;
         if (end <= 0) return null;
-        const col = chapterColor(co.color);
         return (
-          <div className={"block ghost " + (co.chapter_id === props.currentId ? "current" : "")} style={{ left: 0, width: pct(end) + "%", ["--c-fill" as string]: col.fill, ["--c-line" as string]: col.line }} title={`${co.name} — carried over from the previous day`}>
+          <div className={"block ghost " + (co.chapter_id === props.currentId ? "current" : "")} style={{ left: 0, width: pct(end) + "%", ...chapterVars(co.color) }} title={`${co.name} — carried over from the previous day`}>
             ← {co.name}
           </div>
         );
@@ -190,7 +189,6 @@ export function Track(props: {
             break;
           }
         }
-        const col = chapterColor(c.color);
         const v = props.variantOf?.(c);
         const past = nowMin != null && e < nowMin;
         const held = !!c.held_by;
@@ -202,7 +200,7 @@ export function Track(props: {
           <div
             key={c.chapter_id + i}
             className={cls}
-            style={{ left: pct(s) + "%", width: Math.max(0.6, pct(e - s)) + "%", ["--c-fill" as string]: col.fill, ["--c-line" as string]: col.line }}
+            style={{ left: pct(s) + "%", width: Math.max(0.6, pct(e - s)) + "%", ...chapterVars(c.color) }}
             title={`${c.name} — ${startText}${holdText}${c.source === "day" ? "\n(this day only)" : ""}${c.note ? "\n" + c.note : ""}`}
             onClick={() => props.onChapter?.(c)}
             onContextMenu={(e) => ctxFromEvent(e, c)}

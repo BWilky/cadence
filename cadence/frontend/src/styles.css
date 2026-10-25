@@ -1618,6 +1618,18 @@ label.row.toggle-row {
     0 0 0 4px var(--accent);
 }
 
+/* ---------- chapter blocks: pastel cards, chapter colour as ink ---------- */
+:root {
+  --ink-mix: #1b1b1b; /* light theme: darken the chapter colour for text */
+  --ink-amt: 68%;
+  --card-amt: 16%;
+}
+[data-theme="dark"] {
+  --ink-mix: #ffffff;
+  --ink-amt: 62%;
+  --card-amt: 22%;
+}
+
 /* ---------- 24-hour timeline track (Now + Planner) ---------- */
 .track {
   position: relative;
@@ -1630,76 +1642,85 @@ label.row.toggle-row {
   position: absolute;
   top: 0;
   bottom: 0;
-  border-left: 1px solid rgba(var(--rgb-text), 0.08);
+  border-left: 1px solid rgba(var(--rgb-text), 0.06);
 }
 .track .hour span {
   position: absolute;
-  top: 2px;
-  left: 3px;
+  top: 3px;
+  left: 4px;
   font-size: 10px;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
-  color: rgba(var(--rgb-text), 0.45);
+  color: var(--text-2);
 }
 .track .block {
   position: absolute;
   top: 18px;
   bottom: 4px;
-  border-radius: 6px;
-  border: 1px solid var(--c-line);
-  background: var(--c-fill);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--c) var(--card-amt), var(--bg));
   overflow: hidden;
-  padding: 3px 7px;
+  padding: 4px 8px;
   font-size: 12px;
   font-weight: 600;
-  color: var(--text);
+  color: color-mix(in srgb, var(--c) var(--ink-amt), var(--ink-mix));
   white-space: nowrap;
   text-overflow: ellipsis;
   cursor: pointer;
+  transition: box-shadow 0.12s;
 }
 .track .block:hover {
-  filter: brightness(1.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
 }
 .track .block.dim {
-  opacity: 0.45;
+  opacity: 0.5;
 }
 .track .block.cond {
-  border-style: dashed;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 55%, transparent);
+  background: color-mix(in srgb, var(--c) 8%, var(--bg));
 }
 .track .block .v {
-  font-style: normal;
   font-size: 10px;
-  color: rgba(var(--rgb-text), 0.7);
+  color: var(--text-2);
   font-weight: 500;
   margin-left: 6px;
   font-variant-numeric: tabular-nums;
 }
 .track .block.current {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 50%, transparent) inset;
+  box-shadow: inset 0 0 0 2px var(--accent);
 }
 .track .block .fade {
   position: absolute;
   left: 0;
   top: 0;
   bottom: 0;
-  background: repeating-linear-gradient(-60deg, rgba(var(--rgb-text), 0.1) 0 3px, transparent 3px 8px);
-  border-right: 1px dashed rgba(var(--rgb-text), 0.3);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--bg) 55%, transparent), transparent);
+  border-right: 1px dashed color-mix(in srgb, var(--c) 45%, transparent);
   pointer-events: none;
 }
 .track .playhead {
   position: absolute;
   top: 0;
   bottom: 0;
-  border-left: 1.5px solid var(--accent);
-  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 40%, transparent);
+  border-left: 2px solid var(--danger);
   z-index: 3;
   pointer-events: none;
+}
+.track .playhead::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
 }
 .track .night {
   position: absolute;
   top: 0;
   bottom: 0;
-  background: rgba(var(--rgb-text), 0.06);
+  background: rgba(var(--rgb-text), 0.05);
   pointer-events: none;
 }
 .track .auto {
@@ -1728,13 +1749,13 @@ label.row.toggle-row {
   bottom: 0;
   height: 12px;
   pointer-events: none;
-  border-top: 1px solid rgba(var(--rgb-text), 0.08);
+  border-top: 1px solid rgba(var(--rgb-text), 0.06);
 }
 .track .music .seg {
   position: absolute;
   top: 0;
   bottom: 0;
-  background: rgba(var(--rgb-text), 0.06);
+  background: rgba(var(--rgb-text), 0.05);
   pointer-events: auto;
 }
 .track .music .env {
@@ -1759,27 +1780,26 @@ label.row.toggle-row {
   background: color-mix(in srgb, var(--accent-2) 85%, transparent);
 }
 .track .block.dayonly {
-  border-style: double;
-  border-width: 3px;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--c) 60%, transparent);
 }
 .track .block.ghost {
-  border-style: dotted;
-  opacity: 0.55;
+  opacity: 0.5;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 40%, transparent);
+  background: transparent;
   cursor: default;
 }
 .track .block.held {
-  border-style: dashed;
-  background: repeating-linear-gradient(90deg, var(--c-fill) 0 6px, transparent 6px 12px);
-  opacity: 0.8;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 55%, transparent);
+  background: color-mix(in srgb, var(--c) 8%, var(--bg));
+  opacity: 0.85;
 }
 .track .block .holdmark {
   position: absolute;
   right: 0;
   top: 0;
   bottom: 0;
-  width: 10px;
-  background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--accent) 60%, transparent) 0 2px, transparent 2px 6px);
-  border-left: 1px dashed color-mix(in srgb, var(--accent) 70%, transparent);
+  width: 4px;
+  background: repeating-linear-gradient(180deg, color-mix(in srgb, var(--accent) 70%, transparent) 0 4px, transparent 4px 7px);
   pointer-events: none;
 }
 .track .block .grip {
@@ -1799,7 +1819,7 @@ label.row.toggle-row {
   left: 2px;
   width: 3px;
   border-radius: 2px;
-  background: rgba(var(--rgb-text), 0.3);
+  background: color-mix(in srgb, var(--c) 50%, transparent);
   opacity: 0;
   transition: opacity 0.12s;
 }
@@ -1818,7 +1838,7 @@ label.row.toggle-row {
   position: relative;
   height: 100%;
   min-width: 0;
-  border-left: 1px solid rgba(var(--rgb-text), 0.08);
+  border-left: 1px solid rgba(var(--rgb-text), 0.06);
   transition: opacity 0.15s;
 }
 .daycol.vacant {
@@ -1828,7 +1848,10 @@ label.row.toggle-row {
   opacity: 0.5;
 }
 .daycol.following {
-  opacity: 0.82;
+  opacity: 0.85;
+}
+.daycol.today {
+  background: color-mix(in srgb, var(--accent) 4%, transparent);
 }
 .daycol.picked {
   background: color-mix(in srgb, var(--accent-2) 6%, transparent);
@@ -1837,108 +1860,116 @@ label.row.toggle-row {
   position: absolute;
   left: 0;
   right: 0;
-  border-top: 1px solid rgba(var(--rgb-text), 0.06);
+  border-top: 1px solid rgba(var(--rgb-text), 0.05);
   pointer-events: none;
 }
 .daycol .night {
   position: absolute;
   left: 0;
   right: 0;
-  background: rgba(var(--rgb-text), 0.04);
+  background: rgba(var(--rgb-text), 0.03);
   pointer-events: none;
 }
 .daycol .auto {
   position: absolute;
-  left: 2px;
-  width: 3px;
+  left: 1px;
+  width: 2px;
   border-radius: 2px;
-  background: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
   pointer-events: none;
 }
 .daycol .event {
   position: absolute;
-  left: 7px;
-  width: 3px;
+  left: 5px;
+  width: 2px;
   border-radius: 2px;
   background: color-mix(in srgb, var(--accent-2) 60%, transparent);
   pointer-events: none;
 }
 .daycol .block {
   position: absolute;
-  left: 6px;
-  right: 6px;
+  left: 5px;
+  right: 5px;
   border-radius: 10px;
-  background: color-mix(in srgb, var(--c-fill) 42%, var(--bg));
+  background: color-mix(in srgb, var(--c) var(--card-amt), var(--bg));
   overflow: hidden;
-  padding: 8px 10px 5px;
+  padding: 8px 10px;
   font-size: 12px;
-  line-height: 1.3;
-  color: var(--text);
+  line-height: 1.25;
+  color: color-mix(in srgb, var(--c) var(--ink-amt), var(--ink-mix));
   cursor: pointer;
   transition: box-shadow 0.12s;
 }
-.daycol .block::before {
-  content: "";
-  position: absolute;
-  left: 10px;
-  right: 10px;
-  top: 0;
-  height: 3px;
-  border-radius: 0 0 2px 2px;
-  background: var(--c-line);
+.daycol .block.mid {
+  padding: 5px 10px;
+}
+.daycol .block.tiny {
+  padding: 1px 8px;
+  line-height: 1.1;
+  border-radius: 6px;
 }
 .daycol .block:hover {
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.14);
-}
-.daycol .block .t {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: color-mix(in srgb, var(--c-line) 80%, var(--text));
-  white-space: nowrap;
-  overflow: hidden;
-}
-.daycol .block .t .mu {
-  font-weight: 400;
-  opacity: 0.6;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.12);
 }
 .daycol .block .n {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 12.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  min-width: 0;
+}
+.daycol .block.tiny .n {
+  font-size: 11px;
+}
+.daycol .block .n .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.daycol .block .n .mk {
+  font-weight: 400;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+.daycol .block .t {
+  margin-top: 3px;
+  font-size: 11px;
   font-weight: 500;
-  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.daycol .block .t .n {
-  font-weight: 500;
-  min-width: 0;
+.daycol .block .t.inline {
+  margin: 0 0 0 auto;
+  flex-shrink: 0;
 }
 .daycol .block .v {
-  margin-top: 2px;
-  font-size: 11px;
-  color: rgba(var(--rgb-text), 0.55);
+  color: var(--text-2);
 }
 .daycol .block.dim {
-  opacity: 0.5;
+  opacity: 0.55;
 }
 .daycol .block.cond {
-  background: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--c-fill) 42%, var(--bg)) 0 6px, color-mix(in srgb, var(--c-fill) 22%, var(--bg)) 6px 12px);
+  background: color-mix(in srgb, var(--c) 7%, var(--bg));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 50%, transparent);
 }
 .daycol .block.ghost {
-  opacity: 0.5;
+  opacity: 0.6;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 40%, transparent);
   cursor: default;
 }
-.daycol .block.ghost::before {
-  display: none;
-}
-.daycol .block.held::before {
-  background: repeating-linear-gradient(90deg, var(--c-line) 0 6px, transparent 6px 10px);
+.daycol .block.held {
+  background: color-mix(in srgb, var(--c) 7%, var(--bg));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 50%, transparent);
 }
 .daycol .block.current {
-  box-shadow: 0 0 0 2px var(--accent);
+  box-shadow: inset 0 0 0 2px var(--accent);
 }
 .daycol .block .holdmark {
   position: absolute;
@@ -1959,7 +1990,7 @@ label.row.toggle-row {
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding-top: 4px;
+  padding-top: 3px;
   cursor: ns-resize;
   touch-action: none;
 }
@@ -1974,7 +2005,7 @@ label.row.toggle-row {
   width: 22px;
   height: 3px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--c-line) 35%, transparent);
+  background: color-mix(in srgb, var(--c) 40%, transparent);
   opacity: 0;
   transition: opacity 0.12s;
 }
@@ -1982,14 +2013,14 @@ label.row.toggle-row {
   opacity: 1;
 }
 .daycol .block .grip:hover .pill {
-  background: color-mix(in srgb, var(--c-line) 60%, transparent);
+  background: color-mix(in srgb, var(--c) 70%, transparent);
 }
 .daycol.dragging .block .grip .pill {
   opacity: 0;
 }
 .daycol.dragging .block .grip.active .pill {
   opacity: 1;
-  background: color-mix(in srgb, var(--c-line) 60%, transparent);
+  background: color-mix(in srgb, var(--c) 70%, transparent);
 }
 .daycol.dragging,
 .daycol.dragging .block {
@@ -2000,19 +2031,9 @@ label.row.toggle-row {
   position: absolute;
   left: 0;
   right: 0;
-  border-top: 1.5px solid var(--accent);
+  border-top: 2px solid var(--danger);
   z-index: 3;
   pointer-events: none;
-}
-.daycol .playhead::before {
-  content: "";
-  position: absolute;
-  left: -4px;
-  top: -4px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--accent);
 }
 .daycol .empty {
   position: absolute;
@@ -2024,6 +2045,42 @@ label.row.toggle-row {
   font-size: 11px;
   color: rgba(var(--rgb-text), 0.45);
   pointer-events: none;
+}
+
+/* the "now" line across the whole week grid, with a time flag in the hour gutter */
+.week-grid {
+  position: relative;
+}
+.now-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 4;
+  border-top: 2px solid var(--danger);
+  pointer-events: none;
+}
+.now-line .flag {
+  position: absolute;
+  right: calc(100% - 48px + 6px);
+  top: -9px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  padding: 2px 6px;
+  border-radius: 999px;
+  line-height: 1.2;
+}
+.now-line::after {
+  content: "";
+  position: absolute;
+  left: 46px;
+  top: -5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
 }
 
 /* planner chrome */
@@ -2080,7 +2137,9 @@ label.row.toggle-row {
   right: 8px;
   transform: translateY(-50%);
   font-size: 10px;
+  font-weight: 500;
   color: var(--text-2);
+  opacity: 0.8;
   font-variant-numeric: tabular-nums;
 }
 .legend {
