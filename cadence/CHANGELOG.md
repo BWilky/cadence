@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.1
+
+- The backend reports the version from its package metadata, so the sidebar and startup log
+  no longer show a stale number after a release.
+
 ## 0.4.0
 
 - New look for the planner pages, matching the Tablets / Audio sheets on the dashboards: a left
