@@ -2,11 +2,13 @@
 
 ## Unreleased
 
-- Planner: dragging a chapter's handle keeps the edge exactly under the pointer (snapped to five
-  minutes), and the chapter stays where it was dropped while the day saves instead of jumping back
-  to its old time. Chapters too short to read (an eight-minute Default Evening) are drawn one line
-  tall over the start of the next chapter, which moves its text down out of the way; edges and
-  drag handles stay at their true times.
+- Planner: chapter starts land on quarter hours — dragging a handle keeps the edge exactly under
+  the pointer and snaps it to the nearest 15 minutes, as do "Move start to" and the clock-time
+  field. The chapter stays where it was dropped while the day saves instead of jumping back to its
+  old time. The week grid is taller by default (a quarter hour is one 24px row) with quarter-hour
+  guide lines; ctrl+wheel still zooms. Chapters too short to read are drawn one line tall over the
+  start of the next chapter, which moves its text down out of the way; edges and drag handles stay
+  at their true times.
 
 ## 0.5.0
 

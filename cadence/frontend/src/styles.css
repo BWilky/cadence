@@ -1863,6 +1863,9 @@ label.row.toggle-row {
   border-top: 1px solid rgba(var(--rgb-text), 0.05);
   pointer-events: none;
 }
+.daycol .hline.q {
+  border-top-color: rgba(var(--rgb-text), 0.022); /* quarter hours */
+}
 .daycol .night {
   position: absolute;
   left: 0;

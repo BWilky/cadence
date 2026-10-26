@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { hhmm, minutesOfDay } from "../api";
+import { hhmm, minutesOfDay, snapMinute } from "../api";
 import type { CalendarEvent, CarryOver, MusicAction, ResolvedChapter, TimeWindow } from "../types";
 import { chapterVars } from "./ui";
 
@@ -90,15 +90,14 @@ export function Track(props: {
   const starts = baseStarts.map((m, i) => (drag && props.chapters[i].chapter_id === drag.id ? drag.minute : m));
 
   // Drag the left edge of a block to move its start: the edge sits exactly under the pointer,
-  // snapped to 5 minutes. The drop minute comes from the pointer-up event itself.
+  // snapped to the quarter hour. The drop minute comes from the pointer-up event itself.
   const dragId = drag?.id ?? null;
   useEffect(() => {
     if (!dragId) return;
     const minuteAt = (clientX: number) => {
       const rect = hostRef.current?.getBoundingClientRect();
       if (!rect) return null;
-      const m = Math.round(((clientX - rect.left) / rect.width) * 1440 / 5) * 5;
-      return Math.max(0, Math.min(1435, m));
+      return snapMinute(((clientX - rect.left) / rect.width) * 1440);
     };
     const move = (e: PointerEvent) => {
       const m = minuteAt(e.clientX);
@@ -196,7 +195,7 @@ export function Track(props: {
     e.stopPropagation();
     const host = e.currentTarget.closest(".track") as HTMLElement | null;
     const rect = (host ?? e.currentTarget).getBoundingClientRect();
-    const minute = Math.round(((e.clientX - rect.left) / rect.width) * 1440 / 5) * 5;
+    const minute = snapMinute(((e.clientX - rect.left) / rect.width) * 1440);
     props.onContext({ minute: Math.max(0, Math.min(1439, minute)), chapter, x: e.clientX, y: e.clientY });
   };
 

@@ -11,9 +11,10 @@ import type { TrackContext } from "../components/Track";
 import { Btn, COLORS, Chip, Confirm, Field, Fold, Icon, IconBtn, Page, Row, Section, Segmented, toast } from "../components/ui";
 import type { CadenceScene, Chapter, DayPlan, DayView, ResolvedChapter, Template } from "../types";
 
-const HOUR_H_DEFAULT = 44; // px per hour
-const HOUR_H_MIN = 24;
-const HOUR_H_MAX = 140;
+const HOUR_H_DEFAULT = 96; // px per hour: a quarter hour is a 24px row, one readable line
+const HOUR_H_MIN = 48;
+const HOUR_H_MAX = 192;
+const HOUR_H_KEY = "cadence.planner.hourH.v2"; // new key so the quarter-hour default applies to old installs
 const GUTTER = 48; // px, hour labels
 
 /** Monday of the week containing `iso`. */
@@ -53,13 +54,13 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
   const gridRef = useRef<HTMLDivElement>(null);
   const st = live.status;
   const [HOUR_H, setHourH] = useState<number>(() => {
-    const v = parseFloat(localStorage.getItem("cadence.planner.hourH") ?? "");
+    const v = parseFloat(localStorage.getItem(HOUR_H_KEY) ?? "");
     return Number.isFinite(v) ? Math.max(HOUR_H_MIN, Math.min(HOUR_H_MAX, v)) : HOUR_H_DEFAULT;
   });
   const hourHRef = useRef(HOUR_H);
   useEffect(() => {
     hourHRef.current = HOUR_H;
-    localStorage.setItem("cadence.planner.hourH", String(HOUR_H));
+    localStorage.setItem(HOUR_H_KEY, String(HOUR_H));
   }, [HOUR_H]);
   // Pinch (ctrl+wheel on a trackpad) zooms the hour height around the cursor; a plain wheel still scrolls.
   useEffect(() => {

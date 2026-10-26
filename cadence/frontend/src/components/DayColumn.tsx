@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { hhmm, minutesOfDay } from "../api";
+import { hhmm, minutesOfDay, snapMinute } from "../api";
 import type { DayView, ResolvedChapter } from "../types";
 import { chapterVars } from "./ui";
 import type { TrackContext } from "./Track";
@@ -22,7 +22,7 @@ export function DayColumn(props: {
   const chapters = d.chapters;
   const pct = (m: number) => (Math.max(0, Math.min(1440, m)) / 1440) * 100;
   const hostRef = useRef<HTMLDivElement>(null);
-  // The edge being dragged sits exactly under the pointer, snapped to 5 minutes. After the drop the
+  // The edge being dragged sits exactly under the pointer, snapped to the quarter hour. After the drop the
   // block stays where it was released (`dropped`) until the refreshed day arrives, so it never
   // snaps back to the old time while the save is in flight.
   const [drag, setDrag] = useState<{ id: string; minute: number; dropped?: boolean } | null>(null);
@@ -37,8 +37,7 @@ export function DayColumn(props: {
     const minuteAt = (clientY: number) => {
       const rect = hostRef.current?.getBoundingClientRect();
       if (!rect) return null;
-      const m = Math.round(((clientY - rect.top) / rect.height) * 1440 / 5) * 5;
-      return Math.max(0, Math.min(1435, m));
+      return snapMinute(((clientY - rect.top) / rect.height) * 1440);
     };
     const move = (e: PointerEvent) => {
       const m = minuteAt(e.clientY);
@@ -77,8 +76,8 @@ export function DayColumn(props: {
     e.preventDefault();
     e.stopPropagation();
     const rect = (hostRef.current ?? e.currentTarget).getBoundingClientRect();
-    const minute = Math.round((((e.clientY - rect.top) / rect.height) * 1440) / 5) * 5;
-    props.onContext({ minute: Math.max(0, Math.min(1439, minute)), chapter, x: e.clientX, y: e.clientY });
+    const minute = snapMinute(((e.clientY - rect.top) / rect.height) * 1440);
+    props.onContext({ minute, chapter, x: e.clientX, y: e.clientY });
   };
 
   const tone = d.occupied === false ? "vacant" : d.detached ? "own" : "following";
@@ -111,8 +110,8 @@ export function DayColumn(props: {
 
   return (
     <div ref={hostRef} className={["daycol", tone, todayCls, dragId ? "dragging" : "", props.className ?? ""].join(" ")} onContextMenu={(e) => ctxFromEvent(e, null)}>
-      {Array.from({ length: 24 }, (_, h) => (
-        <div key={h} className="hline" style={{ top: pct(h * 60) + "%" }} />
+      {Array.from({ length: 96 }, (_, q) => (
+        <div key={q} className={"hline" + (q % 4 ? " q" : "")} style={{ top: pct(q * 15) + "%" }} />
       ))}
       {sr != null && ss != null ? (
         <>

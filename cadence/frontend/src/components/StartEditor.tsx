@@ -1,4 +1,5 @@
 import { mdiClose, mdiPlus } from "@mdi/js";
+import { SNAP_MINUTES, snapHHMM } from "../api";
 import type { ChapterStart, StartKind, TimeWindow } from "../types";
 import { SensorRef } from "./SensorRef";
 import { Btn, IconBtn, NumberInput } from "./ui";
@@ -24,7 +25,7 @@ export function StartEditor({ value, onChange }: { value: ChapterStart; onChange
           <option value="asleep">When the building falls asleep</option>
           <option value="sensor">When a sensor changes</option>
         </select>
-        {value.kind === "clock" ? <input type="time" className={TIME} value={value.time ?? ""} onChange={(e) => set({ time: e.target.value })} /> : null}
+        {value.kind === "clock" ? <input type="time" className={TIME} step={SNAP_MINUTES * 60} value={value.time ?? ""} onChange={(e) => set({ time: snapHHMM(e.target.value) })} /> : null}
       </div>
       {value.kind === "sun" ? (
         <div className="inline-text">

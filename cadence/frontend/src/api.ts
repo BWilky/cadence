@@ -148,6 +148,18 @@ export function minutesOfDay(iso: string): number {
   return d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60;
 }
 
+/** Chapter starts set in the planner land on quarter hours. */
+export const SNAP_MINUTES = 15;
+export function snapMinute(minutes: number, max = 1440 - SNAP_MINUTES): number {
+  return Math.max(0, Math.min(max, Math.round(minutes / SNAP_MINUTES) * SNAP_MINUTES));
+}
+
+/** "HH:MM" rounded to the quarter hour; empty stays empty. */
+export function snapHHMM(t: string): string {
+  const m = /^(\d{1,2}):(\d{2})/.exec(t);
+  return m ? hhmm(snapMinute(Number(m[1]) * 60 + Number(m[2]))) : t;
+}
+
 export function hhmm(minutes: number): string {
   const m = ((Math.round(minutes) % 1440) + 1440) % 1440;
   return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
