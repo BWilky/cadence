@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.2
 
 - The planner, Now page and tablet show every time in the building's timezone (the engine's), not
   the browser's. A browser an hour off from the site used to draw every chapter an hour early and
