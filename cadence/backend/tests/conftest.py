@@ -31,6 +31,14 @@ class FakeHA:
     def on_connection(self, cb):
         self._conn.append(cb)
 
+    def on_event(self, event_type, cb):
+        self._events = getattr(self, "_events", {})
+        self._events.setdefault(event_type, []).append(cb)
+
+    async def set_state(self, entity_id, state, attributes=None):
+        self.posted = getattr(self, "posted", [])
+        self.posted.append((entity_id, state, attributes or {}))
+
     async def call_service(self, domain, service, *, target=None, data=None, return_response=False):
         self.calls.append((domain, service, target, data))
         if return_response:

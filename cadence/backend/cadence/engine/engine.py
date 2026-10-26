@@ -12,6 +12,7 @@ from datetime import date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from .. import __version__
 from ..config import Options
 from ..ha.client import HAClient
 from ..migrate import migrate_settings
@@ -34,6 +35,7 @@ from ..models import (
 )
 from ..store import Store
 from .actions import Executor
+from .publish import COMMAND_EVENT, Publisher, build_entities
 from .rules import match_rule
 from .schedule import (
     add_days,
@@ -88,8 +90,12 @@ class Engine:
         self.active_leds: set[str] = set()
         self.last_status: EngineStatus | None = None
         self.calendar_cache: dict[str, tuple[float, list[dict]]] = {}
+        self.publisher = Publisher(ha)
+        self.show_request: dict | None = None  # last "show the card" request, mirrored on sensor.cadence_status
+        self._command_tasks: set[asyncio.Task] = set()
         self.ha.on_state(self._on_state)
         self.ha.on_connection(self._on_connection)
+        self.ha.on_event(COMMAND_EVENT, self._on_command)
 
     # ------------------------------------------------------------------ lifecycle
     def start(self) -> None:
@@ -103,6 +109,7 @@ class Engine:
             self._task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await self._task
+        await self.publisher.mark_unavailable()
 
     def wake(self) -> None:
         self._wake.set()
@@ -154,6 +161,7 @@ class Engine:
 
     # ------------------------------------------------------------------ HA events
     def _on_connection(self, up: bool) -> None:
+        self.publisher.reset()  # state-only entities vanish when Home Assistant restarts: post them again
         if up:
             cfg = self.ha.config or {}
             tzname = cfg.get("time_zone") or "UTC"
@@ -956,6 +964,70 @@ class Engine:
         self.last_status.carry_over = carry_over
         self.last_status.chapter_hold = self.active_hold
         self.emit({"type": "status", "status": self.last_status.model_dump()})
+        self._publish(day, s, plan)
+
+    def _publish(self, day: date, s: Settings, plan: DayPlan | None) -> None:
+        if not self.last_status or not self.ha.connected.is_set():
+            return
+        mode, wins = auto_windows_for(day, s, plan)
+        try:
+            entities = build_entities(
+                self.last_status,
+                version=__version__,
+                auto_mode=mode,
+                auto_windows=wins,
+                auto_source=s.auto_source,
+                auto_entity=s.auto_entity,
+                show=self.show_request,
+            )
+        except Exception:  # noqa: BLE001 — publishing must never break a tick
+            log.exception("could not build Home Assistant entities")
+            return
+        self.publisher.update(entities)
+
+    # ------------------------------------------------------------------ commands from Home Assistant
+    def _on_command(self, event: dict) -> None:
+        """`cadence_command` events: fired by the Lovelace card (through script.cadence_command for
+        non-admin accounts) or by any automation. Run off the websocket reader: handlers take the
+        engine lock, and a tick holding it may be waiting on a reply that same reader delivers."""
+        task = asyncio.create_task(self.handle_command(event.get("data") or {}, event.get("context") or {}))
+        self._command_tasks.add(task)
+        task.add_done_callback(self._command_tasks.discard)
+
+    async def handle_command(self, data: dict, context: dict | None = None) -> bool:
+        cmd = str(data.get("command") or "").strip().lower()
+        who = (context or {}).get("user_id")
+        detail = {"command": cmd, "data": data, "user_id": who}
+        if cmd == "auto":
+            mode = str(data.get("mode") or "").strip().lower()
+            mode = {"schedule": "none", "default": "none", "": "none"}.get(mode, mode)
+            if mode not in ("on", "off", "none"):
+                self._log("warning", "command", f"Ignored auto command with mode {data.get('mode')!r}", detail)
+                return False
+            self.set_auto_override(mode)
+            return True
+        if cmd in ("resume", "release"):
+            self.release_hold("released from Home Assistant")
+            return True
+        if cmd == "apply":
+            ok = await self.manual_apply(data.get("chapter_id") or None, data.get("variant_key") or data.get("variant") or None)
+            if not ok:
+                self._log("warning", "command", "Apply from Home Assistant: nothing to apply", detail)
+            return ok
+        if cmd == "recompute":
+            self.wake()
+            return True
+        if cmd == "show":
+            screens = str(data.get("screens") or "all").lower()
+            self.show_request = {
+                "at": self.now().isoformat(),
+                "tab": data.get("tab") or None,
+                "screens": screens if screens in ("all", "tablets", "phones") else "all",
+            }
+            self.wake()
+            return True
+        self._log("warning", "command", f"Unknown Cadence command {cmd!r}", detail)
+        return False
 
     async def apply(
         self, chapter: Chapter, variant: Variant | None, resolved: ResolvedChapter, *, entering_chapter: bool, ctx: dict, manual: bool = False

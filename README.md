@@ -30,6 +30,7 @@ cadence/                 the add-on
   Dockerfile             node build of the UI + python runtime
   backend/               FastAPI service, engine, tests
   frontend/              Vite + React planner and tablet UI
+card/                    Lovelace card for phones and wall tablets (cadence-card.js)
 .github/workflows/       tests + multi-arch image build to GHCR
 ```
 

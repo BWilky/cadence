@@ -28,6 +28,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Lovelace card syntax
+        run: node --check card/cadence-card.js
       - name: Frontend build
         working-directory: cadence/frontend
         run: |
