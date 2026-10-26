@@ -8,7 +8,7 @@ import { musicSummary } from "../components/MusicRow";
 import { useSensorGroups } from "../components/SensorRef";
 import { WindowsEditor, defaultStart } from "../components/StartEditor";
 import type { TrackContext } from "../components/Track";
-import { Btn, COLORS, Chip, Confirm, Field, Fold, Icon, IconBtn, Page, Row, Section, Segmented, toast } from "../components/ui";
+import { Btn, Chip, COLORS, Confirm, doubleTapHandlers, Field, Fold, Icon, IconBtn, Page, Row, Section, Segmented, toast } from "../components/ui";
 import type { CadenceScene, Chapter, DayPlan, DayView, ResolvedChapter, Template } from "../types";
 
 const HOUR_H_DEFAULT = 96; // px per hour: a quarter hour is a 24px row, one readable line
@@ -49,6 +49,15 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [clipboard, setClipboard] = useState<string | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
+  // Template-following days whose sheet has been lifted (double-click on the label or the sheet).
+  const [revealed, setRevealed] = useState<Set<string>>(new Set());
+  const toggleReveal = (date: string) =>
+    setRevealed((r) => {
+      const n = new Set(r);
+      if (n.has(date)) n.delete(date);
+      else n.add(date);
+      return n;
+    });
   const [calOpen, setCalOpen] = useState(false);
   const [calMonth, setCalMonth] = useState<string>(() => monthStart(today));
   const gridRef = useRef<HTMLDivElement>(null);
@@ -320,8 +329,9 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
                 {clipboard ? <input type="checkbox" className="ml-auto" checked={inPick} readOnly aria-label="Select for paste" /> : null}
               </button>
               <div
-                className={"tl" + (quiet ? " opacity-60" : "") + (d?.predicted && d.template_kind === "rule" ? " italic" : "")}
-                title={d ? `${d.template_reason}${d.predicted ? " (expected)" : d.decided ? " (settled)" : ""} · ${OCC_LABEL[d.occupied_reason] ?? ""}${d.pending_rules.length ? "\nMay still become: " + d.pending_rules.map((r) => r.rule_name).join(", ") : ""}` : ""}
+                className={"tl" + (quiet ? " opacity-60" : "") + (d?.predicted && d.template_kind === "rule" ? " italic" : "") + (d && !d.detached && d.chapters.length ? " sheeted" : "")}
+                title={d ? `${d.template_reason}${d.predicted ? " (expected)" : d.decided ? " (settled)" : ""} · ${OCC_LABEL[d.occupied_reason] ?? ""}${d.pending_rules.length ? "\nMay still become: " + d.pending_rules.map((r) => r.rule_name).join(", ") : ""}${d && !d.detached && d.chapters.length ? (revealed.has(date) ? "\nDouble-click to hide the chapters again" : "\nDouble-click to show the chapters") : ""}` : ""}
+                {...(d && !d.detached && d.chapters.length ? doubleTapHandlers("tl:" + date, () => toggleReveal(date)) : {})}
               >
                 <span className="truncate">{d ? templateLine(d) : ""}</span>
                 {d && d.conflicts.length ? (
@@ -382,6 +392,7 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
                 className={picked.has(date) ? "picked" : ""}
                 playhead={false}
                 hourH={HOUR_H}
+                sheet={!d.detached && d.chapters.length > 0 && !revealed.has(date) ? { label: d.template_name ?? "Template", onToggle: () => toggleReveal(date) } : null}
               />
             );
           })}

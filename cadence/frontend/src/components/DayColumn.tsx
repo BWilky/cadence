@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { hhmm, minutesOfDay, snapMinute } from "../api";
 import type { DayView, ResolvedChapter } from "../types";
-import { chapterVars } from "./ui";
+import { chapterVars, doubleTapHandlers } from "./ui";
 import type { TrackContext } from "./Track";
 
 /** One day as a vertical column: 00:00 at the top, 24:00 at the bottom. */
@@ -17,6 +17,10 @@ export function DayColumn(props: {
   className?: string;
   playhead?: boolean; // false = the parent draws one line across every column
   hourH?: number; // px per hour the parent sizes the column with (default 44)
+  // A day that just follows its template sits behind a translucent sheet: faint and not clickable
+  // until the sheet (or the day's label) is double-clicked / double-tapped. Days with their own
+  // chapters never get one.
+  sheet?: { label: string; onToggle: () => void } | null;
 }) {
   const d = props.view;
   const chapters = d.chapters;
@@ -232,6 +236,14 @@ export function DayColumn(props: {
         );
       })}
       {nowMin != null && props.playhead !== false ? <div className="playhead" style={{ top: pct(nowMin) + "%" }} /> : null}
+      {props.sheet ? (
+        <div className="sheet" title="Follows its template — double-click to show the chapters" {...doubleTapHandlers("sheet:" + d.date, props.sheet.onToggle)}>
+          <span className="hint">
+            {props.sheet.label}
+            <small>double-click to show</small>
+          </span>
+        </div>
+      ) : null}
     </div>
   );
 }

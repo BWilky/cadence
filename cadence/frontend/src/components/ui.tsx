@@ -523,3 +523,38 @@ export function ColorDots({ value, onChange }: { value: string | null | undefine
     </div>
   );
 }
+
+// ------------------------------------------------------------------------- double tap
+//
+// Double-click on a mouse, or two quick taps on touch (iOS Safari fires no dblclick for taps).
+// Keyed so the same helper serves many elements in a render loop without hook rules.
+const taps = new Map<string, { t: number; x: number; y: number; touch: number }>();
+export function doubleTapHandlers(key: string, cb: () => void) {
+  const get = () => {
+    let l = taps.get(key);
+    if (!l) taps.set(key, (l = { t: 0, x: 0, y: 0, touch: 0 }));
+    return l;
+  };
+  return {
+    onPointerUp: (e: React.PointerEvent) => {
+      if (e.pointerType !== "touch") return;
+      const l = get();
+      const now = performance.now();
+      if (now - l.t < 350 && Math.hypot(e.clientX - l.x, e.clientY - l.y) < 24) {
+        l.t = 0;
+        l.touch = now;
+        cb();
+      } else {
+        l.t = now;
+        l.x = e.clientX;
+        l.y = e.clientY;
+      }
+    },
+    onDoubleClick: (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (performance.now() - get().touch < 600) return; // already handled as a double tap
+      cb();
+    },
+  };
+}

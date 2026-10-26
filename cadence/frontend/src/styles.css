@@ -1847,9 +1847,6 @@ label.row.toggle-row {
 .daycol.vacant:hover {
   opacity: 0.5;
 }
-.daycol.following {
-  opacity: 0.85;
-}
 .daycol.today {
   background: color-mix(in srgb, var(--accent) 4%, transparent);
 }
@@ -2039,6 +2036,44 @@ label.row.toggle-row {
 .daycol.dragging .block {
   cursor: ns-resize;
   user-select: none;
+}
+.daycol .sheet {
+  /* template-following day: chapters sit faint behind this until it is double-clicked */
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+}
+.daycol .sheet .hint {
+  position: sticky;
+  top: 14px;
+  display: block;
+  width: fit-content;
+  max-width: calc(100% - 16px);
+  margin: 14px auto 0;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 6%, var(--bg));
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-2);
+  text-align: center;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.daycol .sheet .hint small {
+  display: block;
+  font-size: 10px;
+  font-weight: 400;
+  opacity: 0.75;
+}
+.day-head .tl.sheeted {
+  cursor: pointer;
 }
 .daycol .playhead {
   position: absolute;

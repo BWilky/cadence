@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Planner: a day that simply follows its template sits behind a translucent sheet — its chapters
+  are faint and not clickable — until you double-click (or double-tap) the day's template label or
+  the sheet itself; double-click again to put the sheet back. A day you have refined (own chapters)
+  is always shown plainly.
+
 ## 0.5.2
 
 - The planner, Now page and tablet show every time in the building's timezone (the engine's), not
