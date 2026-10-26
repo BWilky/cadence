@@ -138,10 +138,12 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
       try {
         const base = d.detached && d.plan ? d.plan : await api.post<DayPlan>(`api/plans/${d.date}/detach`);
         await api.put(`api/plans/${d.date}`, fn(base));
-        await refreshDay(d.date);
         toast(ok);
       } catch (e) {
         toast((e as Error).message, true);
+      } finally {
+        // Also after a failure: a dragged chapter is drawn where it was dropped until the day refreshes.
+        await refreshDay(d.date).catch(() => undefined);
       }
     },
     [refreshDay],
@@ -378,6 +380,7 @@ export function Planner({ live }: { live: ReturnType<typeof useLive> }) {
                 emptyText={d.template_kind === "none" || (d.template_kind === "rule" && !d.template_id) ? "nothing runs" : undefined}
                 className={picked.has(date) ? "picked" : ""}
                 playhead={false}
+                hourH={HOUR_H}
               />
             );
           })}

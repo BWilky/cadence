@@ -16,26 +16,28 @@ export function DayColumn(props: {
   emptyText?: string;
   className?: string;
   playhead?: boolean; // false = the parent draws one line across every column
+  hourH?: number; // px per hour the parent sizes the column with (default 44)
 }) {
   const d = props.view;
   const chapters = d.chapters;
   const pct = (m: number) => (Math.max(0, Math.min(1440, m)) / 1440) * 100;
   const hostRef = useRef<HTMLDivElement>(null);
-  // `offset` = how far (in minutes) the pointer grabbed below the edge it is moving.
-  const [drag, setDrag] = useState<{ id: string; minute: number; offset: number } | null>(null);
+  // The edge being dragged sits exactly under the pointer, snapped to 5 minutes. After the drop the
+  // block stays where it was released (`dropped`) until the refreshed day arrives, so it never
+  // snaps back to the old time while the save is in flight.
+  const [drag, setDrag] = useState<{ id: string; minute: number; dropped?: boolean } | null>(null);
   const baseStarts = chapters.map((c) => (c.start ? minutesOfDay(c.start) : minutesOfDay(c.nominal)));
   const starts = baseStarts.map((m, i) => (drag && chapters[i].chapter_id === drag.id ? drag.minute : m));
 
-  // Drop lands exactly where the pointer is released: the minute is read from the pointer-up
-  // event itself (React state can lag one move behind), and listeners are bound once per drag.
-  const dragId = drag?.id ?? null;
+  // The drop minute is read from the pointer-up event itself (React state can lag one move
+  // behind), and listeners are bound once per drag.
+  const dragId = drag && !drag.dropped ? drag.id : null;
   useEffect(() => {
     if (!dragId) return;
-    const offset = drag?.offset ?? 0;
     const minuteAt = (clientY: number) => {
       const rect = hostRef.current?.getBoundingClientRect();
       if (!rect) return null;
-      const m = Math.round((((clientY - rect.top) / rect.height) * 1440 - offset) / 5) * 5;
+      const m = Math.round(((clientY - rect.top) / rect.height) * 1440 / 5) * 5;
       return Math.max(0, Math.min(1435, m));
     };
     const move = (e: PointerEvent) => {
@@ -46,8 +48,10 @@ export function DayColumn(props: {
       const c = chapters.find((x) => x.chapter_id === dragId);
       const orig = c ? baseStarts[chapters.indexOf(c)] : null;
       const m = minuteAt(e.clientY);
-      if (c && orig !== null && m != null && m !== orig) props.onMoveStart?.(c, m);
-      setDrag(null);
+      if (c && orig !== null && m != null && m !== orig) {
+        props.onMoveStart?.(c, m);
+        setDrag({ id: dragId, minute: m, dropped: true });
+      } else setDrag(null);
     };
     const cancel = () => setDrag(null);
     window.addEventListener("pointermove", move);
@@ -60,16 +64,14 @@ export function DayColumn(props: {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dragId]);
+  // The refreshed day carries the new start: let go of the dropped position.
+  useEffect(() => setDrag((x) => (x?.dropped ? null : x)), [d]);
 
   const isToday = props.now ? props.now.slice(0, 10) === d.date : false;
   const nowMin = isToday && props.now ? minutesOfDay(props.now) : null;
   const sr = d.sunrise ? minutesOfDay(d.sunrise) : null;
   const ss = d.sunset ? minutesOfDay(d.sunset) : null;
 
-  const rawMinute = (clientY: number) => {
-    const rect = hostRef.current?.getBoundingClientRect();
-    return rect ? ((clientY - rect.top) / rect.height) * 1440 : 0;
-  };
   const ctxFromEvent = (e: React.MouseEvent<HTMLElement>, chapter: ResolvedChapter | null) => {
     if (!props.onContext) return;
     e.preventDefault();
@@ -84,8 +86,31 @@ export function DayColumn(props: {
   const enabledStarts = chapters.map((c, i) => (c.enabled && c.start ? starts[i] : null)).filter((m): m is number => m !== null);
   const firstStart = enabledStarts.length ? Math.min(...enabledStarts) : 1440;
 
+  // A chapter shorter than one readable line is drawn MIN_PX tall anyway, over the start of the
+  // following block, which pads its text down past the overlap so neither covers the other. Edges
+  // stay at their true times, so dragging and the hour grid are unaffected.
+  const ppm = (props.hourH ?? 44) / 60; // px per minute
+  const MIN_PX = 20;
+  const layout: Record<number, { h: number; cover: number; over: boolean }> = {};
+  let prevBottom = -Infinity; // px below 00:00 where the previous block's drawing ends
+  chapters.forEach((c, i) => {
+    if (!c.enabled) return;
+    let e = 1440;
+    for (let j = i + 1; j < chapters.length; j++) {
+      if (chapters[j].enabled) {
+        e = starts[j];
+        break;
+      }
+    }
+    const top = starts[i] * ppm + 1;
+    const real = (e - starts[i]) * ppm - 3;
+    const h = Math.max(MIN_PX, real);
+    layout[i] = { h, cover: Math.max(0, prevBottom - top), over: h > real };
+    prevBottom = top + h;
+  });
+
   return (
-    <div ref={hostRef} className={["daycol", tone, todayCls, drag ? "dragging" : "", props.className ?? ""].join(" ")} onContextMenu={(e) => ctxFromEvent(e, null)}>
+    <div ref={hostRef} className={["daycol", tone, todayCls, dragId ? "dragging" : "", props.className ?? ""].join(" ")} onContextMenu={(e) => ctxFromEvent(e, null)}>
       {Array.from({ length: 24 }, (_, h) => (
         <div key={h} className="hline" style={{ top: pct(h * 60) + "%" }} />
       ))}
@@ -150,8 +175,10 @@ export function DayColumn(props: {
         const v = props.variantOf?.(c);
         const past = nowMin != null && e < nowMin;
         const held = !!c.held_by;
-        const size = e - s >= 55 ? "tall" : e - s >= 25 ? "mid" : "tiny";
-        const cls = ["block", size, c.chapter_id === props.currentId ? "current" : "", c.pending_condition ? "cond" : "", held ? "held" : "", past ? "dim" : ""].join(" ");
+        const lay = layout[i];
+        const room = lay.h - lay.cover; // px left for text once the block above is cleared
+        const size = room >= 48 ? "tall" : room >= 26 ? "mid" : "tiny";
+        const cls = ["block", size, lay.over ? "over" : "", c.chapter_id === props.currentId ? "current" : "", c.pending_condition ? "cond" : "", held ? "held" : "", past ? "dim" : ""].join(" ");
         const startText = held ? `waiting — held by ${c.held_by}` : c.start ? hhmm(s) : c.start_entity ? `waiting for ${c.start_entity} (hard start ${hhmm(s)})` : "waiting (" + hhmm(s) + ")";
         const holdText = c.hold ? `\nHolds while ${c.hold.label ?? c.hold.entity_id} is ${c.hold.while_state}${c.hold.latest ? ` (until ${c.hold.latest})` : ""}` : "";
         const hasMusic = (c.music ?? []).length > 0;
@@ -160,19 +187,19 @@ export function DayColumn(props: {
           <div
             key={c.chapter_id + i}
             className={cls}
-            style={{ top: `calc(${pct(s)}% + 1px)`, height: `calc(${Math.max(1.2, pct(e - s))}% - 3px)`, ...chapterVars(c.color) }}
+            style={{ top: `calc(${pct(s)}% + 1px)`, height: lay.h, paddingTop: lay.cover ? `calc(var(--pad-y) + ${lay.cover}px)` : undefined, ...chapterVars(c.color) }}
             title={`${c.name} — ${startText}${holdText}${c.note ? "\n" + c.note : ""}`}
             onClick={() => props.onChapter?.(c)}
             onContextMenu={(ev) => ctxFromEvent(ev, c)}
           >
             {props.onMoveStart && c.kind === "clock" ? (
               <div
-                className={"grip" + (drag?.id === c.chapter_id ? " active" : "")}
+                className={"grip" + (dragId === c.chapter_id ? " active" : "")}
                 title="Drag to change the start time"
                 onPointerDown={(ev) => {
                   ev.preventDefault();
                   ev.stopPropagation();
-                  setDrag({ id: c.chapter_id, minute: s, offset: rawMinute(ev.clientY) - s });
+                  setDrag({ id: c.chapter_id, minute: s });
                 }}
                 onClick={(ev) => ev.stopPropagation()}
               >
@@ -194,12 +221,12 @@ export function DayColumn(props: {
             {c.hold ? <div className="holdmark" /> : null}
             {props.onMoveStart && next && next.kind === "clock" ? (
               <div
-                className={"grip bottom" + (drag?.id === next.chapter_id ? " active" : "")}
+                className={"grip bottom" + (dragId === next.chapter_id ? " active" : "")}
                 title={`Drag to change when ${next.name} starts`}
                 onPointerDown={(ev) => {
                   ev.preventDefault();
                   ev.stopPropagation();
-                  setDrag({ id: next.chapter_id, minute: starts[nextIdx], offset: rawMinute(ev.clientY) - starts[nextIdx] });
+                  setDrag({ id: next.chapter_id, minute: starts[nextIdx] });
                 }}
                 onClick={(ev) => ev.stopPropagation()}
               >

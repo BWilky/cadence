@@ -1893,7 +1893,8 @@ label.row.toggle-row {
   border-radius: 10px;
   background: color-mix(in srgb, var(--c) var(--card-amt), var(--bg));
   overflow: hidden;
-  padding: 8px 10px;
+  --pad-y: 8px; /* vertical padding; a block drawn over by a short one above adds the overlap to it */
+  padding: var(--pad-y) 10px;
   font-size: 12px;
   line-height: 1.25;
   color: color-mix(in srgb, var(--c) var(--ink-amt), var(--ink-mix));
@@ -1901,12 +1902,21 @@ label.row.toggle-row {
   transition: box-shadow 0.12s;
 }
 .daycol .block.mid {
-  padding: 5px 10px;
+  --pad-y: 5px;
 }
 .daycol .block.tiny {
-  padding: 1px 8px;
+  --pad-y: 1px;
+  padding: var(--pad-y) 8px;
   line-height: 1.1;
   border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.daycol .block.over {
+  /* a short chapter drawn at its minimum height, lying over the start of the next block */
+  z-index: 2;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
 }
 .daycol .block:hover {
   box-shadow: 0 3px 12px rgba(0, 0, 0, 0.12);

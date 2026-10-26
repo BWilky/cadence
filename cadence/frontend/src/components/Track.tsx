@@ -85,20 +85,19 @@ export function Track(props: {
 }) {
   const pct = (m: number) => (Math.max(0, Math.min(1440, m)) / 1440) * 100;
   const hostRef = useRef<HTMLDivElement>(null);
-  const [drag, setDrag] = useState<{ id: string; minute: number; offset: number } | null>(null);
+  const [drag, setDrag] = useState<{ id: string; minute: number } | null>(null);
   const baseStarts = props.chapters.map((c) => (c.start ? minutesOfDay(c.start) : minutesOfDay(c.nominal)));
   const starts = baseStarts.map((m, i) => (drag && props.chapters[i].chapter_id === drag.id ? drag.minute : m));
 
-  // Drag the left edge of a block to move its start (5-minute snapping). The drop minute comes from
-  // the pointer-up event itself so it lands exactly where the handle is released.
+  // Drag the left edge of a block to move its start: the edge sits exactly under the pointer,
+  // snapped to 5 minutes. The drop minute comes from the pointer-up event itself.
   const dragId = drag?.id ?? null;
   useEffect(() => {
     if (!dragId) return;
-    const offset = drag?.offset ?? 0;
     const minuteAt = (clientX: number) => {
       const rect = hostRef.current?.getBoundingClientRect();
       if (!rect) return null;
-      const m = Math.round((((clientX - rect.left) / rect.width) * 1440 - offset) / 5) * 5;
+      const m = Math.round(((clientX - rect.left) / rect.width) * 1440 / 5) * 5;
       return Math.max(0, Math.min(1435, m));
     };
     const move = (e: PointerEvent) => {
@@ -191,10 +190,6 @@ export function Track(props: {
   const showMusic = props.music !== false;
   const env = showMusic ? musicEnvelope(props.chapters, starts) : null;
 
-  const rawMinute = (clientX: number) => {
-    const rect = hostRef.current?.getBoundingClientRect();
-    return rect ? ((clientX - rect.left) / rect.width) * 1440 : 0;
-  };
   const ctxFromEvent = (e: React.MouseEvent<HTMLElement>, chapter: ResolvedChapter | null) => {
     if (!props.onContext) return;
     e.preventDefault();
@@ -302,7 +297,7 @@ export function Track(props: {
                 onPointerDown={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  setDrag({ id: c.chapter_id, minute: s, offset: rawMinute(e.clientX) - s });
+                  setDrag({ id: c.chapter_id, minute: s });
                 }}
                 onClick={(e) => e.stopPropagation()}
               />

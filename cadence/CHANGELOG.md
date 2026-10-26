@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Planner: dragging a chapter's handle keeps the edge exactly under the pointer (snapped to five
+  minutes), and the chapter stays where it was dropped while the day saves instead of jumping back
+  to its old time. Chapters too short to read (an eight-minute Default Evening) are drawn one line
+  tall over the start of the next chapter, which moves its text down out of the way; edges and
+  drag handles stay at their true times.
+
 ## 0.5.0
 
 - Cadence publishes its status to Home Assistant as `sensor.cadence_status` (auto, hold, off or
