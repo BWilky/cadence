@@ -2214,12 +2214,14 @@ label.row.toggle-row {
   flex-wrap: wrap;
 }
 .month-pop {
+  /* opens from the calendar button at the right end of the header, so it grows leftward */
   position: absolute;
   top: 100%;
-  left: 0;
+  right: 0;
   z-index: 120;
   margin-top: 6px;
   width: 300px;
+  max-width: calc(100vw - 24px);
   background: var(--bg);
   border-radius: 16px;
   box-shadow:

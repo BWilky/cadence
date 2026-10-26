@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Planner: the month popover opens leftward from the calendar button instead of running off the
+  right edge of the page (which added a horizontal scrollbar).
+
 ## 0.5.3
 
 - Planner: a day that simply follows its template sits behind a translucent sheet — its chapters
