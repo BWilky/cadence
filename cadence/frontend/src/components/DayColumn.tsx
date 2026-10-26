@@ -91,21 +91,17 @@ export function DayColumn(props: {
   const ppm = (props.hourH ?? 44) / 60; // px per minute
   const MIN_PX = 20;
   const layout: Record<number, { h: number; cover: number; over: boolean }> = {};
-  let prevBottom = -Infinity; // px below 00:00 where the previous block's drawing ends
-  chapters.forEach((c, i) => {
-    if (!c.enabled) return;
-    let e = 1440;
-    for (let j = i + 1; j < chapters.length; j++) {
-      if (chapters[j].enabled) {
-        e = starts[j];
-        break;
-      }
-    }
+  let prevBottom = -Infinity; // px below 00:00 where the block drawn above this one ends
+  const order = chapters.map((_, i) => i).filter((i) => chapters[i].enabled).sort((a, b) => starts[a] - starts[b]);
+  order.forEach((i, k) => {
+    const e = k + 1 < order.length ? starts[order[k + 1]] : 1440;
     const top = starts[i] * ppm + 1;
     const real = (e - starts[i]) * ppm - 3;
     const h = Math.max(MIN_PX, real);
-    layout[i] = { h, cover: Math.max(0, prevBottom - top), over: h > real };
-    prevBottom = top + h;
+    // Never pad the text clean out of the block: a covered block keeps at least one line of room.
+    const cover = Math.min(Math.max(0, prevBottom - top), Math.max(0, h - MIN_PX));
+    layout[i] = { h, cover, over: h > real };
+    prevBottom = Math.max(prevBottom, top + h);
   });
 
   return (

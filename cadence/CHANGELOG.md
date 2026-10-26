@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- The planner, Now page and tablet show every time in the building's timezone (the engine's), not
+  the browser's. A browser an hour off from the site used to draw every chapter an hour early and
+  land drags an hour away from where they were dropped; the first chapter of the day could wrap to
+  the previous evening and hide the next chapter's title.
+
 ## 0.5.1
 
 - Planner: chapter starts land on quarter hours — dragging a handle keeps the edge exactly under

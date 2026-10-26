@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, fmtTime, hhmm, minutesOfDay, type useLive } from "../api";
+import { api, fmtTime, hhmm, minutesOfDay, nowMinutesOfDay, type useLive } from "../api";
 import daylightImg from "../assets/daylight.jpg";
 import nightImg from "../assets/night.jpg";
 import { SKY_LABEL, chapterColor, toast } from "../components/ui";
@@ -59,7 +59,7 @@ export function Tablet({ live, query }: { live: Live; query: URLSearchParams }) 
   const scroller = useRef<HTMLDivElement>(null);
   const programmatic = useRef(false);
 
-  const nowMin = tick.getHours() * 60 + tick.getMinutes() + tick.getSeconds() / 60;
+  const nowMin = nowMinutesOfDay(tick);
   const sunrise = st?.sun.sunrise ? minutesOfDay(st.sun.sunrise) : null;
   const sunset = st?.sun.sunset ? minutesOfDay(st.sun.sunset) : null;
   const daylight = daylightAt(nowMin, sunrise, sunset);

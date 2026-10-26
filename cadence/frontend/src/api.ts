@@ -82,6 +82,7 @@ export function useLive(): { status: EngineStatus | null; connected: boolean; lo
       ws.onmessage = (ev) => {
         const msg = JSON.parse(ev.data) as WsMessage;
         if (msg.type === "status") {
+          setSiteTimezone(msg.status.timezone);
           setStatus(msg.status);
           setZones(msg.status.zones);
         } else if (msg.type === "log") {
@@ -129,13 +130,70 @@ export function useHashRoute(): { route: string; query: URLSearchParams; navigat
   return { ...state, navigate: (to: string) => (location.hash = "#/" + to.replace(/^\//, "")) };
 }
 
+// ------------------------------------------------------------------------- site time
+//
+// Every clock the planner shows is the building's, not the browser's: a chapter at 07:30 is 07:30
+// in the engine's timezone whoever is looking. The timezone arrives with the engine status and is
+// remembered so the first paint is right too; until it is known, the wall clock written in the
+// backend's ISO strings (which carry the site offset) is used as is.
+
+const TZ_KEY = "cadence.site_tz";
+let siteTZ: string | null = (() => {
+  try {
+    return localStorage.getItem(TZ_KEY);
+  } catch {
+    return null;
+  }
+})();
+const partsFmt = new Map<string, Intl.DateTimeFormat>();
+
+export function setSiteTimezone(tz: string | null | undefined): void {
+  if (!tz || tz === siteTZ) return;
+  try {
+    new Intl.DateTimeFormat("en-GB", { timeZone: tz }); // throws on an unknown zone
+  } catch {
+    return;
+  }
+  siteTZ = tz;
+  try {
+    localStorage.setItem(TZ_KEY, tz);
+  } catch {
+    /* private window */
+  }
+}
+
+/** Date and wall-clock fields of an instant in the site timezone (browser-local when unknown). */
+function siteParts(d: Date): { y: number; mo: number; d: number; h: number; m: number; s: number } {
+  if (!siteTZ) return { y: d.getFullYear(), mo: d.getMonth() + 1, d: d.getDate(), h: d.getHours(), m: d.getMinutes(), s: d.getSeconds() };
+  let f = partsFmt.get(siteTZ);
+  if (!f) {
+    f = new Intl.DateTimeFormat("en-GB", { timeZone: siteTZ, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    partsFmt.set(siteTZ, f);
+  }
+  const v: Record<string, number> = {};
+  for (const p of f.formatToParts(d)) if (p.type !== "literal") v[p.type] = Number(p.value);
+  return { y: v.year, mo: v.month, d: v.day, h: v.hour % 24, m: v.minute, s: v.second };
+}
+
+/** Wall clock of an ISO datetime in site time: via the timezone when known, else as written. */
+function wallClock(iso: string): { h: number; m: number; s: number } | null {
+  if (siteTZ || /[zZ]$/.test(iso)) {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return null;
+    return siteParts(d);
+  }
+  const m = /T(\d{2}):(\d{2})(?::(\d{2}))?/.exec(iso);
+  return m ? { h: Number(m[1]), m: Number(m[2]), s: Number(m[3] ?? 0) } : null;
+}
+
 // ------------------------------------------------------------------------- formatting helpers
 
 export function fmtTime(iso: string | null | undefined, withSeconds = false): string {
   if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: withSeconds ? "2-digit" : undefined, hour12: false });
+  const w = wallClock(iso);
+  if (!w) return iso;
+  const hm = String(w.h).padStart(2, "0") + ":" + String(w.m).padStart(2, "0");
+  return withSeconds ? hm + ":" + String(w.s).padStart(2, "0") : hm;
 }
 
 export function fmtDate(iso: string): string {
@@ -144,8 +202,14 @@ export function fmtDate(iso: string): string {
 }
 
 export function minutesOfDay(iso: string): number {
-  const d = new Date(iso);
-  return d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60;
+  const w = wallClock(iso);
+  return w ? w.h * 60 + w.m + w.s / 60 : 0;
+}
+
+/** The current minute of the day at the site. */
+export function nowMinutesOfDay(d: Date = new Date()): number {
+  const w = siteParts(d);
+  return w.h * 60 + w.m + w.s / 60;
 }
 
 /** Chapter starts set in the planner land on quarter hours. */
@@ -166,8 +230,8 @@ export function hhmm(minutes: number): string {
 }
 
 export function todayISO(): string {
-  const d = new Date();
-  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  const w = siteParts(new Date());
+  return w.y + "-" + String(w.mo).padStart(2, "0") + "-" + String(w.d).padStart(2, "0");
 }
 
 export function addDays(iso: string, n: number): string {
