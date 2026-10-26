@@ -212,6 +212,34 @@ motion, and a scrollable timeline of the day. Tap a chapter to start it now or t
 Add it to a Fully Kiosk dashboard as a Webpage card pointing at the Cadence ingress URL followed
 by `#/tablet`, or set Fully Kiosk's start URL to it.
 
+## Dashboard card
+
+`card/cadence-card.js` in the repository is a Lovelace card for phones and tablets: a tile for
+any dashboard, and a sheet (phones) or dialog (tablets) showing auto mode, the current chapter,
+today's ribbon with the auto-mode band, and controls for auto mode, hold and chapters. Open it
+from the tile, from any button that navigates to `#cadence`, or let it pop up on its own when
+auto mode changes or someone takes over by hand. Installation, options and the
+`script.cadence_command` script it uses are in [`card/README.md`](https://github.com/bwilky/cadence/blob/main/card/README.md).
+
+Cadence publishes two entities for it, and for your own automations:
+
+| Entity | State | Useful attributes |
+| --- | --- | --- |
+| `sensor.cadence_status` | `auto`, `hold`, `off` or `idle` | `auto_active`, `auto_reason`, `auto_override`, `chapter`, `variant`, `next`, `hold`, `timeline`, `auto_windows`, `dry_run` |
+| `sensor.cadence_chapter` | current chapter name, or `none` | `variant`, `since`, `next`, `next_at` |
+
+They are state-only entities: they are not in the entity registry, so they cannot be renamed,
+and they reappear as soon as Cadence reconnects after a Home Assistant restart.
+
+Automations can drive Cadence with the `cadence_command` event (or the script):
+
+```yaml
+action: script.cadence_command
+data:
+  command: auto      # auto | resume | apply | recompute | show
+  mode: "off"        # auto: on | off | schedule
+```
+
 ## Calendar
 
 Add the **Google Calendar** integration in Home Assistant, then pick its `calendar.*` entities in

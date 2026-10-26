@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.5.0
+
+- Cadence publishes its status to Home Assistant as `sensor.cadence_status` (auto, hold, off or
+  idle, with today's chapters, auto windows, variant, next chapter, hold and senses as
+  attributes) and `sensor.cadence_chapter` (the current chapter's name). Every account can read
+  them, so dashboards no longer need the admin-only ingress panel. Only changes at chapter,
+  variant and mode boundaries are posted, to keep the recorder quiet; the entities read
+  `unavailable` while the app is stopped and come back after a Home Assistant restart.
+- Cadence listens for a `cadence_command` event: `auto` (on, off or schedule for today),
+  `resume`, `apply` a chapter (optionally a variant), `recompute`, and `show`, which asks screens
+  running the Cadence card to pop it up.
+- New Lovelace card in `card/`: a tile for any dashboard and a phone sheet / tablet dialog with
+  the day ribbon, the auto-mode band, auto mode for today, hold resume and chapter starts. Opens
+  from the tile, `#cadence` links, JavaScript, or on its own when auto mode changes, someone
+  takes over by hand, a chapter starts or Home Assistant asks.
+
 ## 0.4.2
 
 - Zoom the Now page's 24-hour strip with the mouse wheel or a trackpad (pinch, or two-finger

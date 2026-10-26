@@ -47,6 +47,7 @@ async def _fake_ha(app_calls: list) -> web.Application:
                     }
                 )
             elif mtype == "subscribe_events":
+                request.app["subs"].append(data["event_type"])
                 await ws.send_json({"id": mid, "type": "result", "success": True, "result": None})
             elif mtype == "call_service":
                 app_calls.append(data)
@@ -58,9 +59,18 @@ async def _fake_ha(app_calls: list) -> web.Application:
                 await ws.send_json({"id": mid, "type": "result", "success": False, "error": {"code": "unknown_command", "message": mtype}})
         return ws
 
+    async def set_state(request: web.Request) -> web.Response:
+        if request.headers.get("Authorization") != "Bearer secret":
+            return web.json_response({"message": "unauthorized"}, status=401)
+        request.app["posted"].append((request.match_info["entity_id"], await request.json()))
+        return web.json_response({}, status=201)
+
     app = web.Application()
     app["sockets"] = []
+    app["subs"] = []
+    app["posted"] = []
     app.router.add_get("/api/websocket", ws_handler)
+    app.router.add_post("/api/states/{entity_id}", set_state)
     return app
 
 
@@ -144,5 +154,33 @@ async def test_client_rejects_bad_token(fake_server):
     try:
         with pytest.raises(asyncio.TimeoutError):
             await asyncio.wait_for(client.connected.wait(), 0.8)
+    finally:
+        await client.stop()
+
+
+async def test_client_custom_events_and_set_state(fake_server):
+    app, port, _ = fake_server
+    client = HAClient(f"ws://127.0.0.1:{port}/api/websocket", "secret", f"http://127.0.0.1:{port}/api")
+    got: list[dict] = []
+    client.on_event("cadence_command", got.append)
+    client.start()
+    try:
+        await asyncio.wait_for(client.connected.wait(), 5)
+        assert app["subs"] == ["state_changed", "cadence_command"]
+        ws = app["sockets"][0]
+        await ws.send_json({"type": "event", "event": {"event_type": "cadence_command", "data": {"command": "resume"}}})
+        await ws.send_json({"type": "event", "event": {"event_type": "other_event", "data": {}}})
+        for _ in range(50):
+            if got:
+                break
+            await asyncio.sleep(0.02)
+        assert [e["data"] for e in got] == [{"command": "resume"}]
+
+        await client.set_state("sensor.cadence_status", "auto", {"chapter": {"name": "Daytime"}})
+        assert app["posted"] == [("sensor.cadence_status", {"state": "auto", "attributes": {"chapter": {"name": "Daytime"}}})]
+        bad = HAClient("ws://unused", "wrong", f"http://127.0.0.1:{port}/api")
+        with pytest.raises(Exception, match="401"):
+            await bad.set_state("sensor.x", "1")
+        await bad.stop()
     finally:
         await client.stop()

@@ -18,6 +18,7 @@ import aiohttp
 log = logging.getLogger(__name__)
 
 StateListener = Callable[[str, dict | None, dict | None], Awaitable[None] | None]
+EventListener = Callable[[dict], Awaitable[None] | None]
 
 
 class HAError(RuntimeError):
@@ -37,6 +38,7 @@ class HAClient:
         self._msg_id = 0
         self._pending: dict[int, asyncio.Future] = {}
         self._listeners: list[StateListener] = []
+        self._event_listeners: dict[str, list[EventListener]] = {}
         self._conn_listeners: list[Callable[[bool], Any]] = []
         self._task: asyncio.Task | None = None
         self._stop = False
@@ -66,6 +68,10 @@ class HAClient:
 
     def on_connection(self, cb: Callable[[bool], Any]) -> None:
         self._conn_listeners.append(cb)
+
+    def on_event(self, event_type: str, cb: EventListener) -> None:
+        """Listen for a custom Home Assistant event (subscribed on every (re)connect)."""
+        self._event_listeners.setdefault(event_type, []).append(cb)
 
     async def _run(self) -> None:
         backoff = 1.0
@@ -115,6 +121,8 @@ class HAClient:
                 states = await self._send("get_states")
                 self.states = {s["entity_id"]: s for s in states}
                 await self._send("subscribe_events", event_type="state_changed")
+                for event_type in self._event_listeners:
+                    await self._send("subscribe_events", event_type=event_type)
                 self.connected.set()
                 self.last_event_at = time.time()
                 for cb in self._conn_listeners:
@@ -149,7 +157,15 @@ class HAClient:
         raise HAError("websocket closed")
 
     async def _handle_event(self, event: dict) -> None:
-        if event.get("event_type") != "state_changed":
+        etype = event.get("event_type")
+        if etype != "state_changed":
+            for cb in self._event_listeners.get(etype or "", []):
+                try:
+                    res = cb(event)
+                    if asyncio.iscoroutine(res):
+                        await res
+                except Exception:  # noqa: BLE001
+                    log.exception("event listener failed for %s", etype)
             return
         self.last_event_at = time.time()
         d = event.get("data") or {}
@@ -198,6 +214,24 @@ class HAClient:
         if return_response:
             payload["return_response"] = True
         return await self._send("call_service", **payload)
+
+    async def set_state(self, entity_id: str, state: str, attributes: dict | None = None) -> None:
+        """Create or update a state-only entity (REST: POST /api/states/<entity_id>).
+
+        Such entities are not in the entity registry and disappear when Home Assistant restarts,
+        so callers re-post after every reconnect."""
+        if not self.http_url:
+            raise HAError("no REST URL configured")
+        if not self._session or self._session.closed:
+            self._session = aiohttp.ClientSession()
+        async with self._session.post(
+            f"{self.http_url}/states/{entity_id}",
+            json={"state": state, "attributes": attributes or {}},
+            headers={"Authorization": f"Bearer {self.token}"},
+            timeout=aiohttp.ClientTimeout(total=10),
+        ) as resp:
+            if resp.status >= 400:
+                raise HAError(f"set_state {entity_id}: HTTP {resp.status} {(await resp.text())[:200]}")
 
     async def render_template(self, template: str) -> Any:
         return await self._send("render_template", template=template, report_errors=True, timeout=5)
