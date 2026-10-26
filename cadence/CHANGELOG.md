@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.1
 
 - Planner: chapter starts land on quarter hours — dragging a handle keeps the edge exactly under
   the pointer and snaps it to the nearest 15 minutes, as do "Move start to" and the clock-time
