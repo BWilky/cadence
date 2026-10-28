@@ -1,0 +1,91 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>fts harness</title>
+<script type="importmap">{"imports":{
+ "lit":"./node_modules/lit/index.js","lit/":"./node_modules/lit/",
+ "lit-element/":"./node_modules/lit-element/","lit-html":"./node_modules/lit-html/lit-html.js","lit-html/":"./node_modules/lit-html/",
+ "@lit/reactive-element":"./node_modules/@lit/reactive-element/reactive-element.js","@lit/reactive-element/":"./node_modules/@lit/reactive-element/"}}</script>
+<style>
+ body { margin:0; font-family: system-ui, sans-serif; background:#111; color:#e1e1e1;
+   --primary-text-color:#e1e1e1; --secondary-text-color:#9b9b9b; --primary-color:#03a9f4; --accent-color:#ff9800;
+   --card-background-color:#1c1c1c; --ha-card-background:#1c1c1c; --secondary-background-color:#282828; --divider-color:rgba(225,225,225,.12);
+   --rgb-primary-text-color:225,225,225; --rgb-primary-color:3,169,244; --disabled-color:#6f6f6f; --ha-card-border-radius:12px;
+   --error-color:#db4437; --success-color:#43a047; --warning-color:#ffa600; }
+ body.light { background:#fafafa; color:#212121; --primary-text-color:#212121; --secondary-text-color:#727272; --card-background-color:#fff; --ha-card-background:#fff;
+   --secondary-background-color:#e5e5e5; --divider-color:rgba(0,0,0,.12); --rgb-primary-text-color:33,33,33; }
+ ha-card { display:block; background: var(--card-background-color); border-radius: 12px; border: 1px solid var(--divider-color); }
+ #stage { padding: 16px; display:flex; flex-direction:column; gap: 12px; max-width: 700px; }
+</style></head>
+<body>
+<home-assistant></home-assistant>
+<div id="stage"></div>
+<script type="module">
+import { LitElement, html, css } from "lit";
+// HA's frontend exposes html/css on LitElement.prototype; mimic that.
+Object.defineProperty(LitElement.prototype, "html", { get() { return html; }, configurable: true });
+Object.defineProperty(LitElement.prototype, "css", { get() { return css; }, configurable: true });
+class HaIcon extends LitElement { static properties = { icon: {} }; render() { return html`<span style="display:inline-block;width:var(--mdc-icon-size,24px);height:var(--mdc-icon-size,24px);border-radius:4px;background:currentColor;opacity:.75" title=${this.icon||""}></span>`; } }
+customElements.define("ha-icon", HaIcon);
+class HaPanelLovelace extends LitElement { render() { return html``; } }
+customElements.define("ha-panel-lovelace", HaPanelLovelace);
+
+const P = window.__prefixes || ["tabletkitchen"];
+const states = {}, entities = {}, devices = {};
+const mk = (id, state, attributes = {}) => { states[id] = { entity_id: id, state, attributes, last_changed: new Date().toISOString() }; };
+P.forEach((p, i) => {
+  const dev = `dev_${p}`;
+  devices[dev] = { id: dev, name: `Tablet ${p}`, name_by_user: i === 0 ? "Kitchen" : null, connections: [["mac", `14:05:89:a1:82:a${i}`]], identifiers: [["fully_kiosk", `id-${p}`]], configuration_url: `http://192.168.1.5${i}:2323` };
+  const ents = {
+    [`switch.${p}_screen`]: i === 2 ? "unavailable" : i === 1 ? "off" : "on", [`number.${p}_screen_brightness`]: "185", [`sensor.${p}_battery`]: "60",
+    [`binary_sensor.${p}_plugged_in`]: "on", [`sensor.${p}_current_page`]: "http://192.168.1.21:8123/kitchen-tablet/home", [`sensor.${p}_screen_orientation`]: "90",
+    [`sensor.${p}_foreground_app`]: i === 1 ? "com.spotify.music" : "com.fullykiosk.emm", [`image.${p}_screenshot`]: "2026-10-28T02:25:23",
+    [`button.${p}_restart_device`]: "unknown", [`button.${p}_restart_browser`]: "unknown", [`button.${p}_load_start_url`]: "unknown",
+    [`button.${p}_clear_browser_cache`]: "unknown", [`button.${p}_bring_to_foreground`]: "unknown", [`button.${p}_send_to_background`]: "unknown",
+  };
+  for (const [id, s] of Object.entries(ents)) {
+    const attrs = id.startsWith("number.") ? { min: 0, max: 255 } : id.startsWith("image.") ? { entity_picture: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='100'><rect width='160' height='100' fill='%23345'/><text x='10' y='55' fill='white' font-size='20'>screenshot</text></svg>" } : {};
+    mk(id, s, attrs);
+    entities[id] = { entity_id: id, device_id: dev, platform: "fully_kiosk" };
+  }
+});
+mk("switch.kitchen_tablet_plug", "on");
+entities["switch.kitchen_tablet_plug"] = { entity_id: "switch.kitchen_tablet_plug", device_id: "plug", platform: "tplink" };
+
+window.__calls = [];
+const now = Date.now();
+const hist = (p, start, end) => {
+  const out = {};
+  const seq = (id, states) => { out[id] = states.map(([h, s]) => ({ s, lu: (start + h * 3600e3) / 1000 })); };
+  seq(`switch.${p}_screen`, [[0, "off"], [1.5, "on"], [3, "off"], [6, "on"], [6.2, "unavailable"], [6.5, "on"], [9, "off"], [12, "on"], [20, "off"], [22, "on"]]);
+  seq(`binary_sensor.${p}_plugged_in`, [[0, "on"], [4, "off"], [7, "on"], [15, "off"], [16, "on"]]);
+  seq(`sensor.${p}_foreground_app`, [[0, "com.fullykiosk.emm"], [12.5, "com.spotify.music"], [13.5, "com.fullykiosk.emm"], [18, "com.android.settings"], [18.3, "com.fullykiosk.emm"]]);
+  const bat = [];
+  let v = 100;
+  for (let h = 0; h <= 24; h += 0.25) { const plugged = (h < 4) || (h >= 7 && h < 15) || h >= 16; v = Math.max(5, Math.min(100, v + (plugged ? 1.8 : -2.4))); bat.push([h, String(Math.round(v))]); }
+  seq(`sensor.${p}_battery`, bat);
+  return out;
+};
+const logbook = (p, start) => [
+  { when: (start + 1.5 * 3600e3) / 1000, entity_id: `switch.${p}_screen`, state: "on", name: "Screen", context_entity_id_name: "TabletKitchen-ScreenManager" },
+  { when: (start + 4 * 3600e3) / 1000, entity_id: `binary_sensor.${p}_plugged_in`, state: "off", name: "Plugged in" },
+  { when: (start + 6.2 * 3600e3) / 1000, entity_id: `switch.${p}_screen`, state: "unavailable", name: "Screen" },
+  { when: (start + 12.5 * 3600e3) / 1000, entity_id: `sensor.${p}_foreground_app`, state: "com.spotify.music", name: "Foreground app" },
+  { when: (start + 13 * 3600e3) / 1000, entity_id: `button.${p}_restart_browser`, state: "2026-10-28T10:00:00", name: "Restart browser", context_user_id: "abc" },
+  { when: (start + 20 * 3600e3) / 1000, domain: "fully_kiosk", name: "Kitchen tablet", message: "brightness set to 40%" },
+];
+const hass = {
+  states, entities, devices, language: "en",
+  callService: async (d, s, data, target) => { window.__calls.push({ d, s, data, target }); return {}; },
+  callWS: async (msg) => {
+    window.__calls.push({ ws: msg.type });
+    const start = Date.parse(msg.start_time), end = Date.parse(msg.end_time);
+    if (msg.type === "history/history_during_period") return hist(P[0], start, end);
+    if (msg.type === "logbook/get_events") return logbook(P[0], start);
+    return null;
+  },
+};
+document.querySelector("home-assistant").hass = hass;
+window.__hass = hass;
+window.__ready = true;
+</script>
+<script type="module" src="../fully-tablet-sheet.js"></script>
+</body></html>

@@ -1,0 +1,18 @@
+# The same chips inside a Mushroom chips card, mixed with Mushroom's own chips.
+type: custom:mushroom-chips-card
+alignment: center
+chips:
+  - type: entity
+    entity: weather.home
+  - type: custom:fully-tablet-chip
+    chip: status
+  - type: custom:fully-tablet-chip
+    chip: app
+    app_package: com.spotify.music
+  # or any Mushroom chip with a navigate action to a hash route:
+  - type: template
+    icon: mdi:tablet-dashboard
+    content: Tablet
+    tap_action:
+      action: navigate
+      navigation_path: "#tablets-history"

@@ -1,0 +1,18 @@
+# A row of chips. `tablet:` is optional: inside Fully it's this tablet, elsewhere the first one.
+type: custom:fully-tablet-chips
+alignment: start
+chips:
+  - chip: status                 # "60% · On"; tap opens the sheet, hold opens History
+    show: [battery, screen, app]
+  - chip: screen                 # toggles the screen (natively when it runs on that tablet)
+  - chip: battery                # battery icon + %; tap opens History
+  - chip: history
+  - chip: app                    # launches an Android app on the tablet (from the tablet or a phone)
+    app_package: com.spotify.music
+  - chip: app
+    app_package: com.disney.disneyplus
+    name: Disney+
+    icon: mdi:television-play
+  - chip: charger                # shows the smart plug; tap opens the Power section
+  - chip: open                   # plain "Tablets" opener (Overview when there are several)
+    name: Tablets

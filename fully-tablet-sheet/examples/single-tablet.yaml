@@ -1,0 +1,14 @@
+# One Fully Kiosk tablet (discovered from the integration). Button + chips.
+
+# A tile that opens the sheet. Hold opens History.
+type: custom:fully-tablet-sheet-button
+title: Kitchen tablet
+tablets:
+  - name: Kitchen
+    prefix: tabletkitchen            # entity id stem: switch.tabletkitchen_screen, sensor.tabletkitchen_battery, ...
+    plug: switch.kitchen_tablet_plug # optional: a smart plug on the charger (adds "Power cycle")
+charger_off_note: Off for battery conditioning   # optional text under "Charger power" while the plug is off
+apps:                                # optional: names + icons for packages the sheet doesn't know
+  com.yourcompany.app:
+    name: Our app
+    icon: mdi:star

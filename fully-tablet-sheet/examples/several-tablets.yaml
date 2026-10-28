@@ -1,0 +1,24 @@
+# Several tablets, each with a charger plug. The sheet only opens on the office,
+# bar and staff tablets when it runs inside Fully (phones and desktops always can).
+type: custom:fully-tablet-sheet-button
+title: Tablet Controls
+icon: mdi:tablet-dashboard
+tablets:
+  - name: Dining Room
+    short: Dining
+    prefix: galaxy_dining_room
+    plug: switch.sonoff_1001817a07
+  - name: Coffee Bar
+    short: Coffee
+    prefix: galaxy_coffee_bar
+    plug: switch.tp_link_power_strip_8a5b_plug_1
+  - name: Office
+    prefix: galaxy_office
+    plug: switch.tp_link_power_strip_8a5b_plug_2
+  - name: Staff Entrance
+    short: Staff
+    prefix: galaxy_staff_entrance
+    plug: switch.tp_link_power_strip_8a5b_plug_3
+allow_on: [office, coffee_bar, staff_entrance]
+plug_off_seconds: 5
+charger_off_note: Off for battery conditioning
